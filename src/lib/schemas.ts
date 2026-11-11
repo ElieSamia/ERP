@@ -46,3 +46,39 @@ export const newUserSchema = z.object({
   role: z.enum(['admin', 'staff']),
   password: z.string().min(10, 'Use a temporary password of at least 10 characters.'),
 });
+
+/* ---------- Bookings ---------- */
+const dateOrEmpty = z.union([z.literal(''), z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a valid date.')]).default('');
+const code = z.string().trim().toUpperCase().max(3, 'Airport codes have 3 letters.').default('');
+
+export const bookingLineSchema = z.object({
+  id: z.string().min(1).max(60),
+  type: z.enum(['flight', 'hotel', 'transfer', 'visa', 'package', 'insurance', 'other']),
+  desc: z.string().trim().max(500).default(''),
+  date: dateOrEmpty,
+  dateTo: dateOrEmpty,
+  supplierId: z.string().default(''),
+  cost: z.coerce.number().min(0, 'Costs can’t be negative.'),
+  markup: z.coerce.number().min(0, 'Markups can’t be negative.').max(1000),
+});
+
+export const bookingSchema = z.object({
+  contactId: z.string().min(1, 'Choose or create a customer.'),
+  tripType: z.enum(['return', 'oneway', 'service']).default('return'),
+  bookingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Set the booking date.'),
+  origin: code,
+  destination: code,
+  destinationName: text,
+  departDate: dateOrEmpty,
+  returnDate: dateOrEmpty,
+  travellers: z.string().max(4000).default(''),
+  tripNotes: z.string().max(8000).default(''),
+  notes: z.string().max(8000).default(''),
+  lines: z.array(bookingLineSchema).max(100, 'A booking can have up to 100 services.').default([]),
+});
+
+export const pricingSchema = z.object({
+  B2C: z.coerce.number().min(0).max(1000),
+  B2B: z.coerce.number().min(0).max(1000),
+  Corporate: z.coerce.number().min(0).max(1000),
+});

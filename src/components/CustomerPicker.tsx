@@ -8,7 +8,7 @@ import { TextField, SelectField } from './Fields';
 import { useToast } from './Toast';
 
 /** Type to search existing customers; if nobody matches, create one in a small form without leaving the page. */
-export function CustomerPicker({ value, name, onChange, disabled }: { value: string; name: string; onChange: (id: string, name: string) => void; disabled?: boolean }) {
+export function CustomerPicker({ value, name, onChange, disabled }: { value: string; name: string; onChange: (id: string, name: string, type: string) => void; disabled?: boolean }) {
   const [q, setQ] = useState(name);
   const [open, setOpen] = useState(false);
   const [hits, setHits] = useState<Contact[]>([]);
@@ -32,14 +32,14 @@ export function CustomerPicker({ value, name, onChange, disabled }: { value: str
 
   function pick(it: Contact | 'create') {
     if (it === 'create') { setCreating({ name: q.trim(), type: 'customer', phone: '', email: '', city: '' }); setOpen(false); return; }
-    onChange(it.id, it.name); setQ(it.name); setOpen(false);
+    onChange(it.id, it.name, it.type); setQ(it.name); setOpen(false);
   }
   async function create() {
     if (!creating) return;
     setSaving(true);
     try {
       const c = await api<Contact>('/api/contacts', 'POST', { ...creating, quick: true });
-      onChange(c.id, c.name); setQ(c.name); setCreating(null); toast(`${c.name} created.`);
+      onChange(c.id, c.name, c.type); setQ(c.name); setCreating(null); toast(`${c.name} created.`);
     } catch (e) { toast((e as Error).message, 'err'); } finally { setSaving(false); }
   }
   if (disabled) return <div className="fld"><span>Customer</span><div className="ro">{name || 'Not set'}</div></div>;

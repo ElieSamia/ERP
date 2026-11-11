@@ -42,7 +42,14 @@ export async function listLeads(q?: string) {
 export async function getLead(id: string) {
   if (!ObjectId.isValid(id)) return null;
   const d = await (await db()).collection('leads').findOne({ _id: oid(id) });
-  return d ? (await withContactNames([out<Lead>(d)]))[0] : null;
+  if (!d) return null;
+  const lead = (await withContactNames([out<Lead>(d)]))[0];
+  if (lead.bookingId && ObjectId.isValid(lead.bookingId)) {
+    const b = await (await db()).collection('bookings').findOne({ _id: new ObjectId(lead.bookingId) }, { projection: { ref: 1 } });
+    lead.bookingRef = b ? String(b.ref) : undefined;
+    if (!b) lead.bookingId = undefined;
+  }
+  return lead;
 }
 
 export async function getActivity(model: string, recordId: string) {

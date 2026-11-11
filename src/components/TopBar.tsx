@@ -6,6 +6,7 @@ import { api } from '@/lib/client';
 
 export const MODULES = [
   { href: '/crm', name: 'CRM' },
+  { href: '/bookings', name: 'Bookings' },
   { href: '/contacts', name: 'Contacts' },
   { href: '/settings', name: 'Settings' },
 ];

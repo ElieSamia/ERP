@@ -44,6 +44,14 @@ export function LeadForm({ initial }: { initial?: Lead }) {
       toast(stage === 'lost' ? 'Marked as lost.' : 'Stage updated.');
     } catch (e) { toast((e as Error).message, 'err'); }
   }
+  async function convert() {
+    if (!initial) return;
+    if (dirty) return toast('Save your changes first.', 'err');
+    try {
+      const b = await api<{ id: string; ref: string }>(`/api/leads/${initial.id}/convert`, 'POST');
+      toast(`Booking ${b.ref} created.`); router.push(`/bookings/${b.id}`); router.refresh();
+    } catch (e) { toast((e as Error).message, 'err'); }
+  }
   async function remove() {
     if (!initial || !window.confirm('Delete this opportunity? This can’t be undone.')) return;
     try { await api(`/api/leads/${initial.id}`, 'DELETE'); toast('Opportunity deleted.'); router.push('/crm'); router.refresh(); }
@@ -58,6 +66,8 @@ export function LeadForm({ initial }: { initial?: Lead }) {
           {dirty && <span className="dirty">Unsaved changes</span>}
           <button className="btn primary" onClick={save} disabled={busy || (!!initial && !dirty)}>{busy ? 'Saving…' : 'Save'}</button>
           {initial ? (dirty && <button className="btn" onClick={() => setL(saved)}>Discard</button>) : <Link className="btn" href="/crm">Cancel</Link>}
+          {initial && initial.bookingId && <Link className="btn" href={`/bookings/${initial.bookingId}`}>Open booking {initial.bookingRef}</Link>}
+          {initial && !initial.bookingId && saved.stage !== 'lost' && <button className="btn" onClick={convert}>Convert to booking</button>}
           {initial && saved.stage !== 'lost' && saved.stage !== 'won' && <button className="btn" onClick={() => setStage('lost')}>Mark as lost</button>}
           {initial && <button className="btn ghost" onClick={remove}>Delete</button>}
         </div>

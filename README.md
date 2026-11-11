@@ -10,7 +10,15 @@ A travel agency ERP built with Next.js and MongoDB, following the design of the 
 - **CRM**: opportunities in a drag-and-drop pipeline or a list, with a customer picker that searches
   existing contacts or creates a new one on the spot.
 - **Activity log** on every contact and opportunity: changes are recorded by the server, and staff can add notes.
-- **Settings**: company details and staff users (administrators only).
+- **Settings**: company details, markup rules by channel and staff users (administrators only).
+- **Bookings** (phase 2): trip files with trip types (return, one way, service only), services with From and To
+  dates, suppliers, costs, markups and prices, customer and internal notes, and the Draft, Confirmed, Ticketed and
+  Cancelled flow with credit-limit checks for agencies and corporate accounts.
+- **Convert an opportunity to a booking** from the CRM; the opportunity becomes Won and links to the booking.
+- **Documents** on bookings: tickets, vouchers, e-visas and passports in a private Vercel Blob store. Large photos
+  are shrunk in the browser before upload, and files open only through the app after a sign-in check.
+- **Printing**: booking confirmations (prices hidden by default, with a Show prices switch) and hotel vouchers,
+  ready to print or save as PDF.
 - Every API route checks the signed-in user on the server, and all input is validated before it reaches the database.
 
 ## Deploy on Vercel
@@ -25,9 +33,12 @@ A travel agency ERP built with Next.js and MongoDB, following the design of the 
      access from `0.0.0.0/0` under Network Access, and add the connection string as `MONGODB_URI`.
 4. **Add the session secret.** Under **Settings → Environment Variables**, add `AUTH_SECRET` with at least
    32 random characters. Generate one with `openssl rand -base64 48`, or any password manager's generator.
-5. **Redeploy** from the **Deployments** tab (the three-dot menu on the latest deployment, then **Redeploy**),
+5. **Add file storage (phase 2).** In the project, open **Storage → Create → Blob**, choose **Private** access,
+   and connect it to this project. Vercel adds `BLOB_READ_WRITE_TOKEN` for you. Without it, everything works
+   except attaching documents, which shows a clear message.
+6. **Redeploy** from the **Deployments** tab (the three-dot menu on the latest deployment, then **Redeploy**),
    so the new variables are used.
-6. **Open your site.** The first visit goes to `/setup`: enter the company name and your administrator
+7. **Open your site.** The first visit goes to `/setup`: enter the company name and your administrator
    account, and optionally load the sample data.
 
 Choose the database region close to your users (for Lebanon, Frankfurt is a good choice) and set the
@@ -49,13 +60,16 @@ npm run dev                  # opens on http://localhost:3000
 | `contacts` | Customers, agencies, corporate accounts and suppliers |
 | `leads` | CRM opportunities, linked to a contact by `contactId` |
 | `activity` | The log and notes for each record (`model`, `recordId`) |
-| `settings` | Company details (`_id: "company"`) |
+| `settings` | Company details (`_id: "company"`) and markup rules (`_id: "pricing"`) |
+| `bookings` | Trip files with their services, notes and document records (`ref`, `contactId`, `status`) |
+| `counters` | Running numbers for booking references |
 
-Indexes are created automatically during setup.
+Indexes are created automatically the first time the app connects after each deployment.
+Document files themselves live in the private Blob store, never in MongoDB.
 
 ## Next phases
 
-1. Bookings: trip types, services with dates, documents, confirmations and hotel vouchers.
+1. ~~Bookings~~ (done in phase 2).
 2. Invoicing and payments with receipts, purchasing and expenses.
 3. Accounting on the Lebanese chart of accounts, banks and wallets, currencies, reports.
 4. B2B portal: requests, quotes, approvals, portal roles and travel documents.

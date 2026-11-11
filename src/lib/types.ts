@@ -17,6 +17,8 @@ export type Contact = {
 
 export type Lead = {
   id: string;
+  bookingId?: string;
+  bookingRef?: string;
   title: string;
   contactId: string;
   contactName?: string;
@@ -42,3 +44,32 @@ export type Company = {
 };
 
 export type StaffUser = { id: string; name: string; email: string; role: 'admin' | 'staff'; active: boolean; lastLogin?: string };
+
+import type { BookingStatus, ServiceType, TripType, ContactType as CT } from './constants';
+
+export type BookingLine = { id: string; type: ServiceType; desc: string; date: string; dateTo: string; supplierId: string; cost: number; markup: number };
+export type BookingDoc = { id: string; kind: string; traveller: string; name: string; size: number; type: string; at: string; by: string; shared: 'yes' | 'no' };
+export type Booking = {
+  id: string;
+  ref: string;
+  contactId: string;
+  contactName?: string;
+  contactType?: CT;
+  tripType: TripType;
+  bookingDate: string;
+  origin: string;
+  destination: string;
+  destinationName: string;
+  departDate: string;
+  returnDate: string;
+  travellers: string;
+  status: BookingStatus;
+  lines: BookingLine[];
+  tripNotes: string;
+  notes: string;
+  docs: BookingDoc[];
+  leadId?: string;
+  leadTitle?: string;
+  createdAt?: string;
+};
+export type Option = { id: string; name: string };
