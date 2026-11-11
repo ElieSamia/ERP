@@ -689,7 +689,7 @@ const ICONS={
 const icon=(k,s=22)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[k]}</svg>`;
 
 /* ---------- UI state ---------- */
-const S={role:'admin',mod:null,rec:null,search:'',filter:'all',crmView:'kanban',accTab:'entries',period:'y',ccy:'USD',ledger:null,calMonth:null,calDay:null,calView:'month',setTab:'general',outSide:'rec',outParty:null,docTpl:'confirm',ptab:'requests',pagency:null,puser:null,invTab:'invoices',purTab:'orders',roleSel:null};
+const S={role:'admin',mod:null,rec:null,search:'',filter:'all',crmView:'kanban',accTab:'entries',period:'y',ccy:'USD',ledger:null,calMonth:null,calDay:null,calView:'month',setTab:'general',outSide:'rec',outParty:null,docTpl:'confirm',ptab:'requests',pagency:null,puser:null,invTab:'invoices',purTab:'orders',roleSel:null,reqCtx:null};
 
 /* ---------- Helpers ---------- */
 const $=s=>document.querySelector(s);
@@ -829,16 +829,13 @@ function listLeads(){
 function leadForm(l){
   if(S.draft&&S.draft.rec===l)return cp(crumbs('CRM','New opportunity'),btn('Save','savedraft','primary')+btn('Cancel','canceldraft'),statusbar(LEAD_STAGES,l.stage))+
     `<div class="recpage"><div class="recmain"><section class="sheet"><div class="grid">${Object.keys(MODELS.lead.fields).map(f=>field('lead',l,f)).join('')}</div></section></div><aside class="chatter"><h3>Activity</h3><p class="muted" style="margin:0">Nothing is saved until you select Save. The activity log starts then.</p></aside></div>`;
-  if(l.requestId){const rq=find('request',l.requestId);const bk=l.converted&&find('booking',l.converted);
-    return cp(crumbs('CRM',l.title),btn(`Open portal request ${rq?rq.ref:''}`,'goto','primary',`data-mod="portal" data-id="${l.requestId}"`)+(bk?btn(`Open booking ${bk.ref}`,'goto','',`data-mod="bookings" data-id="${bk.id}"`):''),statusbar(LEAD_STAGES,l.stage))+
-     `<div class="recpage"><div class="recmain"><p class="banner">This opportunity came from the B2B portal. Its stage follows request ${esc(rq?rq.ref:'')} automatically, so update it from the request.</p><section class="sheet"><div class="grid">${Object.keys(MODELS.lead.fields).map(f=>field('lead',l,f,f==='stage'||f==='contactId')).join('')}</div></section></div>${chatter(l,'lead')}</div>`}
   const acts=[];
   if(l.converted){const b=find('booking',l.converted);if(b)acts.push(btn(`Open booking ${b.ref}`,'goto','primary',`data-mod="bookings" data-id="${b.id}"`))}
   else if(l.stage!=='lost')acts.push(btn('Convert to booking','convert','primary'));
   if(l.stage!=='lost'&&!l.converted)acts.push(btn('Mark as lost','lost'));
-  acts.push(btn('Delete','delete','ghost'));
+  if(l.requestId){const rq=find('request',l.requestId);acts.push(btn(`Open portal request ${rq?rq.ref:''}`,'goto','',`data-mod="portal" data-id="${l.requestId}"`))}else acts.push(btn('Delete','delete','ghost'));
   return cp(crumbs('CRM',l.title||'New opportunity'),acts.join(''),statusbar(LEAD_STAGES,l.stage))+
-  `<div class="recpage"><div class="recmain"><section class="sheet"><div class="grid">${Object.keys(MODELS.lead.fields).map(f=>field('lead',l,f)).join('')}</div></section></div>${chatter(l,'lead')}</div>`;
+  `<div class="recpage"><div class="recmain">${l.requestId?'<p class="banner">From the B2B portal. Moving this opportunity also updates the customer’s request: Qualified starts the review, Quote sent sends the quote, Won confirms it and creates the booking, and Lost declines it with a reason.</p>':''}<section class="sheet"><div class="grid">${Object.keys(MODELS.lead.fields).map(f=>field('lead',l,f,!!l.requestId&&f==='contactId')).join('')}</div></section></div>${chatter(l,'lead')}</div>`;
 }
 
 /* ---------- Bookings ---------- */
@@ -1946,6 +1943,20 @@ function appearanceSettings(){const t=DB.settings.theme;
      'Useful if you want the portal to carry your brand colours while the ERP keeps a calmer look. Portal colours apply only when set to Its own colours.')+
     `<div class="addrow">${btn('Reset appearance to default','themereset')}</div>`}
 
+/* ---------- CRM stages drive portal requests (two-way) ---------- */
+const reqCtx=()=>(S.reqCtx&&find('request',S.reqCtx))||cur();
+function stageFromCRM(l,st){const r=find('request',l.requestId);if(!r){l.stage=st;return}
+  if(REQ_TO_STAGE[r.status]===st)return;
+  if(r.status==='booked'){const b=find('booking',r.bookingId);return toast(`This deal already has booking ${b?b.ref:''}. Cancel the booking first if the deal is off.`,'err')}
+  const closed=['declined','cancelled'].includes(r.status);
+  if(st==='new'){r.status='submitted';reqMsg(r,'system',closed?'Request reopened by our team.':'Request moved back to submitted.');log(r,'Moved to New from the CRM.');toast(`${r.ref} is back to Submitted.`)}
+  else if(st==='qualified'){r.status='review';reqMsg(r,'system',closed?'Request reopened. Our team is reviewing it.':'Our team is reviewing your request.');log(r,'Review started from the CRM.');toast(`${r.ref} is now In review. The customer sees this in the portal.`)}
+  else if(st==='quoted'){if(r.quote&&!closed&&r.quote.validUntil>=today()){r.status='quoted';reqMsg(r,'system',`Quote sent: ${money(r.quote.amount)}, valid until ${fmtDate(r.quote.validUntil)}.`);log(r,'Quote sent again from the CRM.');toast('The existing quote was sent to the customer again.')}
+    else{S.reqCtx=r.id;ACTIONS.reqquote();return}}
+  else if(st==='won'){if(r.status!=='accepted'){r.status='accepted';reqMsg(r,'system','Confirmed by our team.')}log(r,'Marked won in the CRM.');const b=bookFromRequest(r);toast(`Won. Booking ${b.ref} created as a draft, and the customer can follow it in the portal.`)}
+  else if(st==='lost'){S.reqCtx=r.id;ACTIONS.reqdecline();return}
+  syncLead(r)}
+
 /* ---------- Router ---------- */
 const FORMS={contacts:contactForm,crm:leadForm,bookings:bookingForm,invoicing:invoiceForm,pricing:productForm,accounting:moveForm,expenses:expenseForm,purchasing:purchaseForm,marketing:campaignForm,calendar:eventForm,portal:requestForm,prequests:requestForm,pbookings:portalBooking,pinvoices:portalInvoice,spos:supplierPO};
 const LISTS={contacts:listContacts,crm:listLeads,bookings:listBookings,invoicing:()=>S.invTab==='payments'?listCustPayments():listInvoices(),pricing:listProducts,accounting:listMoves,expenses:listExpenses,purchasing:()=>S.purTab==='payments'?listSupPayments():listPurchases(),marketing:listCampaigns,portal:listReqAdmin,prequests:listReqAgent,pbookings:listPBookings,pinvoices:listPInvoices,spos:listSPOs};
@@ -2062,10 +2073,10 @@ const ACTIONS={
     const method=$('#pay-method').value,journal=$('#pay-journal').value;const pay={id:uid('z'),date:today(),amount:amt,method,journal};i.payments.push(pay);paymentMove(i,pay);log(i,`Payment of ${money(amt)} registered by ${method.toLowerCase()}.`);
     if(iBalance(i)<=0.005){i.status='paid';log(i,'Invoice fully paid.')}toast(`Payment of ${money(amt)} registered.`);render();openDoc('receipt',i.id,pay.id)},
   /* CRM */
-  convert(){const l=cur();if(!l.contactId)return toast('Choose a customer before converting.','err');
+  convert(){const l=cur();if(l.requestId){stageFromCRM(l,'won');const rq=find('request',l.requestId);return rq&&rq.bookingId?go('bookings',rq.bookingId):render()}if(!l.contactId)return toast('Choose a customer before converting.','err');
     const b=newBooking(l.contactId,{destinationName:l.destination,departDate:l.travelDate,notes:[`From opportunity: ${l.title}`,`Travellers: ${l.pax||'not set'}`,`Budget: ${money(l.budget)}`,`Preferred travel date: ${fmtDate(l.travelDate)}`,l.notes?`\nOpportunity notes:\n${l.notes}`:''].filter(Boolean).join('\n')});
     log(b,`Booking created from opportunity “${l.title}”.`);l.stage='won';l.converted=b.id;log(l,`Won. Converted to booking ${b.ref}.`);toast(`Booking ${b.ref} created.`);go('bookings',b.id)},
-  lost(){const l=cur();l.stage='lost';log(l,'Marked as lost.');render()},
+  lost(){const l=cur();if(l.requestId)return stageFromCRM(l,'lost');l.stage='lost';log(l,'Marked as lost.');render()},
   /* Accounting */
   acctab(t){S.accTab=t.dataset.v;S.rec=null;S.search='';S.filter='all';render()},
   ccy(t){S.ccy=t.dataset.v;render()},
@@ -2215,25 +2226,25 @@ const ACTIONS={
   reqmsg(){const r=cur();const txt=$('#rq-msg').value.trim();if(!txt)return toast('Write a message first.','err');
     reqMsg(r,isAgent()?'agency':'staff',txt);log(r,`Message ${isAgent()?'from the agency':'sent to the agency'}. Email notification simulated.`);render()},
   reqreview(){const r=cur();r.status='review';reqMsg(r,'system','Our team is reviewing your request.');log(r,'Review started.');render()},
-  reqquote(){const r=cur();const q=r.quote||{};
+  reqquote(t){if(t)S.reqCtx=null;const r=reqCtx();const q=r.quote||{};
     openModal(`<h2>${r.quote?'Change the quote':'Send a quote'}, ${esc(r.ref)}</h2><div class="grid">
      <label class="fld" for="q-amt"><span>Price for the agency (USD)</span><input id="q-amt" type="number" min="0" step="0.01" value="${q.amount||''}"></label>
      <label class="fld" for="q-until"><span>Valid until</span><input id="q-until" type="date" value="${q.validUntil&&q.validUntil>=today()?q.validUntil:addDays(today(),+DB.settings.portal.quoteDays||7)}"></label>
      <label class="fld wide" for="q-notes"><span>What’s included</span><textarea id="q-notes" rows="5">${esc(q.notes||'')}</textarea></label></div>
      <p class="hint">The agency sees this in the portal and gets an email. Their B2B markup is ${DB.pricing.B2B}%, so price from your supplier costs plus that markup.</p>
      <div class="dlg-actions">${btn('Cancel','closemodal')}${btn('Send quote','reqquotesend','primary')}</div>`,'','Send a quote')},
-  reqquotesend(){const r=cur();const amt=r2(parseFloat($('#q-amt').value)),until=$('#q-until').value,notes=$('#q-notes').value.trim();
+  reqquotesend(){const r=reqCtx();const amt=r2(parseFloat($('#q-amt').value)),until=$('#q-until').value,notes=$('#q-notes').value.trim();
     if(!(amt>0))return toast('Enter the price.','err');if(!until||until<today())return toast('Set a validity date from today onwards.','err');
     r.quote={amount:amt,validUntil:until,notes,sentAt:today()};r.status='quoted';reqMsg(r,'system',`Quote sent: ${money(amt)}, valid until ${fmtDate(until)}.`);log(r,`Quote of ${money(amt)} sent. Email notification simulated.`);
-    closeModal();toast('Quote sent to the agency.');render()},
+    S.reqCtx=null;closeModal();toast('Quote sent to the customer.');render()},
   qaccept(){const r=cur();const p=P();if(p.acceptQuotes!=='yes')return toast('Your role can’t accept quotes.','err');
     if(p.approveQuotes!=='yes'&&+p.approvalLimit>0&&+r.quote.amount>+p.approvalLimit){r.status='approval';r.approvalBy=puser().name;reqMsg(r,'system',`Quote accepted by ${puser().name}. Waiting for approval because it’s above their ${money(p.approvalLimit)} limit.`);log(r,'Quote sent for approval on the customer side.');toast('Sent to an approver on your account.');return render()}
     acceptQuote(r,(puser()||{}).name||'the customer');render()},
   qdecline(){const r=cur();r.status='review';reqMsg(r,'system',`Quote declined by ${(puser()||{}).name||'the agency'}. Tell us what to change in a message.`);log(r,'Quote declined by the agency.');toast('Quote declined. Send a message to say what to change.');render()},
   reqcancel(){const r=cur();r.status='cancelled';reqMsg(r,'system','Request cancelled by the agency.');log(r,'Cancelled by the agency.');toast('Request cancelled.');render()},
-  reqdecline(){openModal(`<h2>Decline ${esc(cur().ref)}</h2><div class="grid one"><label class="fld" for="dc-why"><span>Reason, shown to the agency</span><textarea id="dc-why" rows="4" placeholder="For example, no availability on these dates"></textarea></label></div>
+  reqdecline(t){if(t)S.reqCtx=null;openModal(`<h2>Decline ${esc(reqCtx().ref)}</h2><div class="grid one"><label class="fld" for="dc-why"><span>Reason, shown to the agency</span><textarea id="dc-why" rows="4" placeholder="For example, no availability on these dates"></textarea></label></div>
     <div class="dlg-actions">${btn('Cancel','closemodal')}${btn('Decline request','reqdeclinesend','primary')}</div>`,'','Decline request')},
-  reqdeclinesend(){const r=cur();const why=$('#dc-why').value.trim();if(!why)return toast('Give the agency a reason.','err');r.status='declined';reqMsg(r,'staff',why);reqMsg(r,'system','Request declined.');log(r,'Declined.');closeModal();render()},
+  reqdeclinesend(){const r=reqCtx();const why=$('#dc-why').value.trim();if(!why)return toast('Give the agency a reason.','err');r.status='declined';reqMsg(r,'staff',why);reqMsg(r,'system','Request declined.');log(r,'Declined.');S.reqCtx=null;closeModal();render()},
   reqbook(){const r=cur();const b=bookFromRequest(r);toast(`Booking ${b.ref} created as a draft. Add suppliers and confirm it.`);go('bookings',b.id)},
   invtab(t){S.invTab=t.dataset.v;S.search='';S.filter='all';render()},
   purtab(t){S.purTab=t.dataset.v;S.search='';S.filter='all';render()},
@@ -2299,7 +2310,7 @@ document.addEventListener('change',e=>{
   if(el.dataset.line){const rec=find(el.dataset.model,el.dataset.id);const l=rec.lines.find(x=>x.id===el.dataset.line);const k=el.dataset.lfield;
     l[k]=['cost','markup','amount','debit','credit','vat'].includes(k)?(parseFloat(el.value)||0):el.value;
     if(k==='type'){if(el.dataset.model==='invoice')l.vat=DB.acc.vat[l.type]||0;render()}else refreshLive();return}
-  if(el.dataset.field){const m=el.dataset.model,rec=find(m,el.dataset.id),f=MODELS[m].fields[el.dataset.field];let v=el.value;
+  if(el.dataset.field){const m=el.dataset.model,rec=find(m,el.dataset.id),f=MODELS[m].fields[el.dataset.field];let v=el.value;if(m==='lead'&&el.dataset.field==='stage'&&rec.requestId){stageFromCRM(rec,v);render();return}
     if(f.type==='check')v=el.checked?'yes':'no';if(f.type==='money'||f.type==='number')v=parseFloat(v)||0;if(f.upper)v=v.toUpperCase().trim();
     const old=rec[el.dataset.field];rec[el.dataset.field]=v;
     if(f.onChange&&old!==v)f.onChange(rec);
@@ -2312,7 +2323,7 @@ document.addEventListener('dragover',e=>{const col=e.target.closest&&e.target.cl
 document.addEventListener('dragleave',e=>{const col=e.target.closest&&e.target.closest('.kcol');if(col&&!col.contains(e.relatedTarget))col.classList.remove('drop')});
 document.addEventListener('drop',e=>{const col=e.target.closest&&e.target.closest('.kcol');if(!col)return;e.preventDefault();
   const l=find('lead',e.dataTransfer.getData('text/plain'));const st=col.dataset.stage;
-  if(l&&l.requestId&&l.stage!==st){toast('This opportunity follows its portal request. Update it in the B2B portal.','err')}else if(l&&l.stage!==st){l.stage=st;log(l,`Stage changed to ${label(LEAD_STAGES,st)}.`);toast(`Moved to ${label(LEAD_STAGES,st)}.`)}render()});
+  if(l&&l.requestId&&l.stage!==st){stageFromCRM(l,st)}else if(l&&l.stage!==st){l.stage=st;log(l,`Stage changed to ${label(LEAD_STAGES,st)}.`);toast(`Moved to ${label(LEAD_STAGES,st)}.`)}render()});
 
 window.addEventListener('beforeprint',()=>{if($('#modal .paper'))document.body.classList.add('printing')});
 window.addEventListener('afterprint',()=>document.body.classList.remove('printing'));
