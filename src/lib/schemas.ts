@@ -59,9 +59,10 @@ export const bookingLineSchema = z.object({
   dateTo: dateOrEmpty,
   supplierId: z.string().default(''),
   cost: z.coerce.number().min(0, 'Costs can’t be negative.'),
-  markup: z.coerce.number().min(0, 'Markups can’t be negative.').max(1000),
+  markup: z.coerce.number().min(0, 'Markups can’t be negative.').max(10000000),
+  markupType: z.enum(['percent', 'amount']).default('percent'),
   poId: z.string().max(40).optional(),
-});
+}).refine((l) => l.markupType === 'amount' || l.markup <= 1000, { message: 'A percentage markup can’t be above 1000%.' });
 
 export const bookingSchema = z.object({
   contactId: z.string().min(1, 'Choose or create a customer.'),
@@ -76,13 +77,22 @@ export const bookingSchema = z.object({
   tripNotes: z.string().max(8000).default(''),
   notes: z.string().max(8000).default(''),
   lines: z.array(bookingLineSchema).max(100, 'A booking can have up to 100 services.').default([]),
+}).superRefine((b, ctx) => {
+  if (b.tripType === 'return' && b.departDate && b.returnDate && b.returnDate < b.departDate)
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['returnDate'], message: 'The return date can’t be before the departure date.' });
+  b.lines.forEach((l, i) => {
+    if (l.date && l.dateTo && l.dateTo < l.date)
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['lines', i, 'dateTo'], message: `Service ${i + 1}${l.desc ? ` (${l.desc})` : ''} ends before it starts. Check its From and To dates.` });
+  });
 });
 
+const markupMode = z.enum(['percent', 'amount']);
 export const pricingSchema = z.object({
-  B2C: z.coerce.number().min(0).max(1000),
-  B2B: z.coerce.number().min(0).max(1000),
-  Corporate: z.coerce.number().min(0).max(1000),
-});
+  B2C: z.coerce.number().min(0, 'Markups can’t be negative.').max(100000),
+  B2B: z.coerce.number().min(0, 'Markups can’t be negative.').max(100000),
+  Corporate: z.coerce.number().min(0, 'Markups can’t be negative.').max(100000),
+  modes: z.object({ B2C: markupMode, B2B: markupMode, Corporate: markupMode }).default({ B2C: 'percent', B2B: 'percent', Corporate: 'percent' }),
+}).refine((p) => (['B2C', 'B2B', 'Corporate'] as const).every((k) => p.modes[k] === 'amount' || p[k] <= 1000), { message: 'A percentage markup can’t be above 1000%.' });
 
 /* ---------- Invoicing, purchasing and expenses ---------- */
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a valid date.');

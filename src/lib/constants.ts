@@ -54,12 +54,18 @@ export const DOC_KINDS = [
 
 export type Channel = 'B2C' | 'B2B' | 'Corporate';
 export const CHANNEL: Record<string, Channel> = { customer: 'B2C', agency: 'B2B', corporate: 'Corporate', supplier: 'B2C' };
-export type Pricing = Record<Channel, number>;
-export const DEFAULT_PRICING: Pricing = { B2C: 15, B2B: 8, Corporate: 10 };
+export type MarkupType = 'percent' | 'amount';
+export const MARKUP_TYPES = [['percent', '%'], ['amount', 'USD']] as const;
+/** Default markup per channel: a percentage of the cost, or a fixed amount in USD added to each service. */
+export type Pricing = Record<Channel, number> & { modes: Record<Channel, MarkupType> };
+export const DEFAULT_PRICING: Pricing = { B2C: 15, B2B: 8, Corporate: 10, modes: { B2C: 'percent', B2B: 'percent', Corporate: 'percent' } };
+export const fmtMarkup = (m: number, t?: MarkupType) => (t === 'amount' ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(m || 0) : `${m || 0}%`);
 
 export const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
-export const sell = (l: { cost: number; markup: number }) => r2((Number(l.cost) || 0) * (1 + (Number(l.markup) || 0) / 100));
-export function totals(lines: { cost: number; markup: number }[]) {
+/** Selling price of a service: cost plus a percentage, or cost plus a fixed amount. */
+export const sell = (l: { cost: number; markup: number; markupType?: MarkupType }) =>
+  l.markupType === 'amount' ? r2((Number(l.cost) || 0) + (Number(l.markup) || 0)) : r2((Number(l.cost) || 0) * (1 + (Number(l.markup) || 0) / 100));
+export function totals(lines: { cost: number; markup: number; markupType?: MarkupType }[]) {
   const cost = r2(lines.reduce((s, l) => s + (Number(l.cost) || 0), 0));
   const total = r2(lines.reduce((s, l) => s + sell(l), 0));
   return { cost, total, margin: r2(total - cost) };

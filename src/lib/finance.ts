@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import { ObjectId, type Document, type WithId } from 'mongodb';
 import { db } from './db';
 import { escapeRegex, HttpError, oid } from './api';
-import { DEFAULT_FINANCE, type Finance, docTotals, todayISO } from './constants';
+import { DEFAULT_FINANCE, type Finance, docTotals, sell, todayISO, type MarkupType } from './constants';
 import { logActivity } from './activity';
 import type { Expense, Invoice, Payment, Purchase, TaxLine } from './types';
 
@@ -91,9 +91,9 @@ export async function invoiceFromBooking(bookingId: string, by: string) {
   const date = todayISO();
   const due = new Date(date + 'T00:00:00Z'); due.setUTCDate(due.getUTCDate() + terms);
   const svcLabel: Record<string, string> = { flight: 'Flight', hotel: 'Hotel', transfer: 'Transfer', visa: 'Visa', package: 'Package', insurance: 'Insurance', other: 'Service' };
-  const invLines = ((b.lines as { id: string; type: keyof Finance['vat']; desc: string; cost: number; markup: number }[]) || []).map((l) => ({
+  const invLines = ((b.lines as { id: string; type: keyof Finance['vat']; desc: string; cost: number; markup: number; markupType?: MarkupType }[]) || []).map((l) => ({
     id: randomUUID(), type: l.type, desc: `${svcLabel[l.type] ?? 'Service'}: ${l.desc}`,
-    amount: Math.round((Number(l.cost) || 0) * (1 + (Number(l.markup) || 0) / 100) * 100) / 100, vat: fin.vat[l.type] ?? 11,
+    amount: sell(l), vat: fin.vat[l.type] ?? 11,
   }));
   const r = await d.collection('invoices').insertOne({
     number: null, contactId: b.contactId, bookingId, date, dueDate: due.toISOString().slice(0, 10), status: 'draft',

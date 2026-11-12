@@ -76,11 +76,16 @@ export async function listSuppliers(): Promise<Option[]> {
 
 export async function getPricing(): Promise<Pricing> {
   const d = await (await db()).collection<{ _id: string } & Partial<Pricing>>('settings').findOne({ _id: 'pricing' });
-  return { B2C: d?.B2C ?? DEFAULT_PRICING.B2C, B2B: d?.B2B ?? DEFAULT_PRICING.B2B, Corporate: d?.Corporate ?? DEFAULT_PRICING.Corporate };
+  return {
+    B2C: d?.B2C ?? DEFAULT_PRICING.B2C, B2B: d?.B2B ?? DEFAULT_PRICING.B2B, Corporate: d?.Corporate ?? DEFAULT_PRICING.Corporate,
+    modes: { ...DEFAULT_PRICING.modes, ...(d?.modes || {}) },
+  };
 }
 
 export async function channelRate(contactType: string) {
-  return (await getPricing())[CHANNEL[contactType] ?? 'B2C'];
+  const p = await getPricing();
+  const ch = CHANNEL[contactType] ?? 'B2C';
+  return { markup: p[ch], markupType: p.modes[ch] };
 }
 
 /** Money committed by an account: unpaid posted invoices plus confirmed or ticketed bookings not yet invoiced. */

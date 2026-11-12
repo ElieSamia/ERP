@@ -47,7 +47,7 @@ export type StaffUser = { id: string; name: string; email: string; role: 'admin'
 
 import type { BookingStatus, ServiceType, TripType, ContactType as CT } from './constants';
 
-export type BookingLine = { id: string; type: ServiceType; desc: string; date: string; dateTo: string; supplierId: string; cost: number; markup: number; poId?: string };
+export type BookingLine = { id: string; type: ServiceType; desc: string; date: string; dateTo: string; supplierId: string; cost: number; markup: number; markupType?: 'percent' | 'amount'; poId?: string };
 export type BookingDoc = { id: string; kind: string; traveller: string; name: string; size: number; type: string; at: string; by: string; shared: 'yes' | 'no' };
 export type Booking = {
   id: string;
