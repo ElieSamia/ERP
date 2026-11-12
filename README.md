@@ -25,6 +25,9 @@ A travel agency ERP built with Next.js and MongoDB, following the design of the 
 - **Expenses** (phase 3): water, stationery, rent and other running costs, by category, paid from an account or
   on credit with a vendor, with a monthly total.
 - **Credit limits** now count unpaid invoices as well as open bookings.
+- **Share links**: every printed document can be shared by email or WhatsApp. The ERP creates a random link that
+  opens only that document, without signing in, and stops working after 30 days (or when cancelled). The message
+  opens in your own email app or WhatsApp, and each share is noted in the record's activity log.
 - **Printing**: invoices, payment receipts, purchase orders and payment vouchers, plus booking confirmations (prices hidden by default, with a Show prices switch) and hotel vouchers,
   ready to print or save as PDF.
 - Every API route checks the signed-in user on the server, and all input is validated before it reaches the database.
@@ -73,6 +76,7 @@ npm run dev                  # opens on http://localhost:3000
 | `invoices` | Customer invoices with their lines and payments |
 | `purchases` | Purchase orders, supplier bills and payments to suppliers |
 | `expenses` | Running costs |
+| `shares` | Share links for documents; they delete themselves when they expire |
 | `counters` | Running numbers for bookings, invoices (per year), receipts, orders, vouchers and expenses |
 
 Indexes are created automatically the first time the app connects after each deployment.
