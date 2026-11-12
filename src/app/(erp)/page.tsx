@@ -16,7 +16,6 @@ async function activeTrips(d: Db) {
 }
 
 const SOON = [
-  ['Accounting', 'ledger', 'Lebanese chart of accounts'],
   ['B2B portal', 'globe', 'Agency requests and access'],
 ] as const;
 
@@ -42,6 +41,7 @@ export default async function Home() {
         <Link className="app" href="/invoicing"><span className="ico"><Icon name="doc" /></span><b>Invoicing</b><span>{unpaid} unpaid invoice{unpaid === 1 ? '' : 's'}</span></Link>
         <Link className="app" href="/purchasing"><span className="ico"><Icon name="cart" /></span><b>Purchasing</b><span>{openPOs} open order{openPOs === 1 ? '' : 's'}</span></Link>
         <Link className="app" href="/expenses"><span className="ico"><Icon name="receipt" /></span><b>Expenses</b><span>{draftExp} draft{draftExp === 1 ? '' : 's'} to post</span></Link>
+        <Link className="app" href="/accounting"><span className="ico"><Icon name="ledger" /></span><b>Accounting</b><span>Journal, reports and VAT, administrators only</span></Link>
         <Link className="app" href="/contacts"><span className="ico"><Icon name="person" /></span><b>Contacts</b><span>{contacts} customers, agencies and suppliers</span></Link>
         <Link className="app" href="/settings"><span className="ico"><Icon name="gear" /></span><b>Settings</b><span>Company, markups, payments and staff users</span></Link>
         {SOON.map(([n, i, d2]) => (
