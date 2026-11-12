@@ -415,3 +415,9 @@ a.btn{display:inline-flex;align-items:center;text-decoration:none}
 a.tab{text-decoration:none;display:inline-block}
 .overdue{color:var(--red);font-weight:600}
 a.app{text-decoration:none}
+.mk{display:inline-flex;gap:4px;align-items:center;width:100%}
+.mk input{min-width:0}
+.mk select{width:auto;flex:none}
+.lines .mk .w-pct{width:90px}
+.fld-err{color:var(--red);font-size:13px;font-weight:500}
+.fld input[aria-invalid="true"],.lines input.bad{border-color:var(--red);box-shadow:0 0 0 1px var(--red)}

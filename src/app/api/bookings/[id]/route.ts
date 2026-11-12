@@ -26,7 +26,10 @@ export async function PATCH(req: Request, { params }: Ctx) {
     const before = await col.findOne({ _id: oid(id) });
     if (!before) throw new HttpError(404, 'Booking not found.');
     const data = bookingSchema.parse(await req.json());
-    const linesChanged = JSON.stringify(data.lines) !== JSON.stringify(before.lines || []);
+    // Compare services field by field, so older records saved before a field existed don't count as changed.
+    type L = { id: string; type: string; desc: string; date: string; dateTo: string; supplierId: string; cost: number; markup: number; markupType?: string; poId?: string };
+    const canon = (ls: L[]) => JSON.stringify(ls.map((l) => [l.id, l.type, l.desc || '', l.date || '', l.dateTo || '', l.supplierId || '', Number(l.cost) || 0, Number(l.markup) || 0, l.markupType || 'percent', l.poId || '']));
+    const linesChanged = canon(data.lines) !== canon((before.lines as L[]) || []);
     const headerKeys = ['contactId', 'tripType', 'bookingDate', 'origin', 'destination', 'destinationName', 'departDate', 'returnDate', 'travellers'] as const;
     const headerChanged = headerKeys.some((k) => (data[k] ?? '') !== (before[k] ?? ''));
     if (linesChanged && !['draft', 'confirmed'].includes(before.status)) throw new HttpError(409, 'Services can’t be changed once the booking is ticketed or cancelled.');

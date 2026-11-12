@@ -24,6 +24,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (!lines.length) throw new HttpError(400, 'Add at least one service before confirming.');
       if (b.tripType !== 'service' && !b.departDate) throw new HttpError(400, 'Set a departure date before confirming.');
       if (b.tripType === 'return' && !b.returnDate) throw new HttpError(400, 'Set a return date, or change the trip type to one way.');
+      if (b.tripType === 'return' && b.returnDate < b.departDate) throw new HttpError(400, 'The return date is before the departure date. Fix the dates before confirming.');
       if (b.tripType === 'service' && lines.some((l) => !l.date)) throw new HttpError(400, 'Set a date on every service before confirming.');
       const c = await d.collection('contacts').findOne({ _id: oid(b.contactId) });
       const limit = Number(c?.creditLimit) || 0;
