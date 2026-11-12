@@ -3,6 +3,17 @@ import { db } from '@/lib/db';
 import { getCompany } from '@/lib/queries';
 import { getSession } from '@/lib/auth';
 import { Icon } from '@/components/Icon';
+import type { Db } from 'mongodb';
+
+/** A trip file is active until its travel is over, whatever its invoicing status. Cancelled files never count. */
+async function activeTrips(d: Db) {
+  const today = new Date().toISOString().slice(0, 10);
+  const list = await d.collection('bookings').find({ status: { $ne: 'cancelled' } }, { projection: { departDate: 1, returnDate: 1, lines: 1 } }).toArray();
+  return list.filter((b) => {
+    const dates = [b.departDate, b.returnDate, ...((b.lines as { date?: string; dateTo?: string }[]) || []).flatMap((l) => [l.date, l.dateTo])].filter(Boolean) as string[];
+    return dates.length === 0 || dates.some((x) => x >= today);
+  }).length;
+}
 
 const SOON = [
   ['Accounting', 'ledger', 'Lebanese chart of accounts'],
@@ -14,7 +25,7 @@ export default async function Home() {
   const [open, contacts, active] = await Promise.all([
     d.collection('leads').countDocuments({ stage: { $in: ['new', 'qualified', 'quoted'] } }),
     d.collection('contacts').countDocuments(),
-    d.collection('bookings').countDocuments({ status: { $in: ['draft', 'confirmed', 'ticketed'] } }),
+    activeTrips(d),
   ]);
   const [unpaid, openPOs, draftExp] = await Promise.all([
     d.collection('invoices').countDocuments({ status: 'posted' }),
@@ -27,7 +38,7 @@ export default async function Home() {
       <p>Welcome, {user?.name.split(' ')[0]}. Everything here is saved to the database.</p>
       <div className="apps">
         <Link className="app" href="/crm"><span className="ico"><Icon name="crm" /></span><b>CRM</b><span>{open} open opportunities</span></Link>
-        <Link className="app" href="/bookings"><span className="ico"><Icon name="plane" /></span><b>Bookings</b><span>{active} active trip files</span></Link>
+        <Link className="app" href="/bookings"><span className="ico"><Icon name="plane" /></span><b>Bookings</b><span>{active} active trip file{active === 1 ? '' : 's'}</span></Link>
         <Link className="app" href="/invoicing"><span className="ico"><Icon name="doc" /></span><b>Invoicing</b><span>{unpaid} unpaid invoice{unpaid === 1 ? '' : 's'}</span></Link>
         <Link className="app" href="/purchasing"><span className="ico"><Icon name="cart" /></span><b>Purchasing</b><span>{openPOs} open order{openPOs === 1 ? '' : 's'}</span></Link>
         <Link className="app" href="/expenses"><span className="ico"><Icon name="receipt" /></span><b>Expenses</b><span>{draftExp} draft{draftExp === 1 ? '' : 's'} to post</span></Link>
