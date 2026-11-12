@@ -1,8 +1,8 @@
 import type { Company, Contact } from './types';
 
 /** Shared header and footer for printed documents. */
-export function PaperHead({ company, title, number, party, partyLabel, meta, stamp }: {
-  company: Company; title: string; number: string; party?: Contact | null; partyLabel: string; meta: [string, string][]; stamp?: string;
+export function PaperHead({ company, title, number, party, partyLabel, meta, stamp, showTax }: {
+  company: Company; title: string; number: string; party?: Contact | null; partyLabel: string; meta: [string, string][]; stamp?: string; showTax?: boolean;
 }) {
   const lines = party ? [[party.city, party.country].filter(Boolean).join(', '), party.email, party.phone].filter(Boolean) : [];
   return (
@@ -12,6 +12,8 @@ export function PaperHead({ company, title, number, party, partyLabel, meta, sta
           <b>{company.name}</b>
           {company.address && <div style={{ whiteSpace: 'pre-line' }}>{company.address}</div>}
           <div>{[company.phone, company.email].filter(Boolean).join(', ')}</div>
+          {showTax && company.financialNo && <div>Financial no. {company.financialNo}</div>}
+          {showTax && company.vatNo && <div>VAT no. {company.vatNo}</div>}
         </div>
         <div className="dh-r"><h1>{title}</h1><div className="dnum">{number}</div>{stamp && <div className="stamp">{stamp}</div>}</div>
       </div>

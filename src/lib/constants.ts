@@ -41,10 +41,10 @@ export const TRIP_TYPES = [
 export type TripType = (typeof TRIP_TYPES)[number][0];
 
 export const BOOKING_STATES = [
-  ['draft', 'Draft'], ['confirmed', 'Confirmed'], ['ticketed', 'Ticketed'], ['cancelled', 'Cancelled'],
+  ['draft', 'Draft'], ['confirmed', 'Confirmed'], ['ticketed', 'Ticketed'], ['invoiced', 'Invoiced'], ['cancelled', 'Cancelled'],
 ] as const;
 export type BookingStatus = (typeof BOOKING_STATES)[number][0];
-export const BOOK_BADGE: Record<string, string> = { draft: '', confirmed: 'b-accent', ticketed: 'b-amber', cancelled: 'b-red' };
+export const BOOK_BADGE: Record<string, string> = { draft: '', confirmed: 'b-accent', ticketed: 'b-amber', invoiced: 'b-green', cancelled: 'b-red' };
 
 export const DOC_KINDS = [
   ['ticket', 'E-ticket'], ['voucher', 'Hotel voucher'], ['tvoucher', 'Transfer voucher'], ['avoucher', 'Tour or activity voucher'],
@@ -79,3 +79,54 @@ export function travelDates(b: Datable) {
   if (b.tripType === 'oneway') return b.departDate ? `${fmtDate(b.departDate)}, one way` : 'To be confirmed';
   return fmtRange(b.departDate, b.returnDate) || 'To be confirmed';
 }
+
+/* ---------- Invoicing, purchasing and expenses (phase 3) ---------- */
+export const INVOICE_STATES = [['draft', 'Draft'], ['posted', 'Posted'], ['paid', 'Paid']] as const;
+export type InvoiceStatus = (typeof INVOICE_STATES)[number][0];
+export const INV_BADGE: Record<string, string> = { draft: '', posted: 'b-amber', paid: 'b-green' };
+
+export const PO_STATES = [['draft', 'Request for quotation'], ['confirmed', 'Purchase order'], ['billed', 'Billed'], ['paid', 'Paid'], ['cancelled', 'Cancelled']] as const;
+export type PurchaseStatus = (typeof PO_STATES)[number][0];
+export const PO_BADGE: Record<string, string> = { draft: '', confirmed: 'b-accent', billed: 'b-amber', paid: 'b-green', cancelled: 'b-red' };
+
+export const EXP_STATES = [['draft', 'Draft'], ['posted', 'Posted']] as const;
+export type ExpenseStatus = (typeof EXP_STATES)[number][0];
+
+export const PAY_METHODS = [['transfer', 'Bank transfer'], ['cash', 'Cash'], ['card', 'Card'], ['cheque', 'Cheque'], ['wallet', 'Wallet transfer']] as const;
+export const VAT_RATES = [['0', '0%'], ['11', '11%']] as const;
+export const ACCOUNT_TYPES = [['bank', 'Bank account'], ['cash', 'Cash box'], ['wallet', 'E-wallet'], ['gateway', 'Card or payment gateway']] as const;
+
+export type PayAccount = { id: string; name: string; type: 'bank' | 'cash' | 'wallet' | 'gateway' };
+export type ExpenseCategory = { id: string; name: string };
+export type Finance = {
+  terms: { customer: number; agency: number; corporate: number };
+  supplierTerms: number;
+  vat: Record<ServiceType, number>;
+  accounts: PayAccount[];
+  categories: ExpenseCategory[];
+  autoPO: 'yes' | 'no';
+};
+export const DEFAULT_FINANCE: Finance = {
+  terms: { customer: 14, agency: 14, corporate: 30 },
+  supplierTerms: 30,
+  vat: { flight: 0, hotel: 11, transfer: 11, visa: 11, package: 11, insurance: 11, other: 11 },
+  accounts: [{ id: 'BNK', name: 'Bank, USD account', type: 'bank' }, { id: 'CSH', name: 'Cash on hand', type: 'cash' }],
+  categories: [
+    { id: 'water', name: 'Water' }, { id: 'electricity', name: 'Electricity and generator' }, { id: 'fuel', name: 'Fuel' },
+    { id: 'stationery', name: 'Stationery and office supplies' }, { id: 'internet', name: 'Telephone and internet' }, { id: 'rent', name: 'Rent' },
+    { id: 'maintenance', name: 'Maintenance and repairs' }, { id: 'cleaning', name: 'Cleaning and hospitality' }, { id: 'bankfees', name: 'Bank charges' },
+    { id: 'other', name: 'Other' },
+  ],
+  autoPO: 'yes',
+};
+
+/** Totals for invoices and purchase orders: VAT is rounded per line, the way it prints. */
+export function docTotals(lines: { amount: number; vat: number }[], payments: { amount: number }[] = []) {
+  const untaxed = r2(lines.reduce((s, l) => s + (Number(l.amount) || 0), 0));
+  const vat = r2(lines.reduce((s, l) => s + r2((Number(l.amount) || 0) * (Number(l.vat) || 0) / 100), 0));
+  const total = r2(untaxed + vat);
+  const paid = r2(payments.reduce((s, p) => s + (Number(p.amount) || 0), 0));
+  return { untaxed, vat, total, paid, balance: r2(total - paid) };
+}
+export const todayISO = () => new Date().toISOString().slice(0, 10);
+export const addDays = (d: string, n: number) => { const x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };

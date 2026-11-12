@@ -1,6 +1,6 @@
 import { db } from './db';
 
-export type ActivityModel = 'contact' | 'lead' | 'booking';
+export type ActivityModel = 'contact' | 'lead' | 'booking' | 'invoice' | 'purchase' | 'expense';
 
 /** The chatter: a history of changes and notes for each record, like Odoo. */
 export async function logActivity(model: ActivityModel, recordId: string, by: string, text: string) {

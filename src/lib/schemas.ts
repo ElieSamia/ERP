@@ -60,6 +60,7 @@ export const bookingLineSchema = z.object({
   supplierId: z.string().default(''),
   cost: z.coerce.number().min(0, 'Costs can’t be negative.'),
   markup: z.coerce.number().min(0, 'Markups can’t be negative.').max(1000),
+  poId: z.string().max(40).optional(),
 });
 
 export const bookingSchema = z.object({
@@ -81,4 +82,61 @@ export const pricingSchema = z.object({
   B2C: z.coerce.number().min(0).max(1000),
   B2B: z.coerce.number().min(0).max(1000),
   Corporate: z.coerce.number().min(0).max(1000),
+});
+
+/* ---------- Invoicing, purchasing and expenses ---------- */
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a valid date.');
+const serviceType = z.enum(['flight', 'hotel', 'transfer', 'visa', 'package', 'insurance', 'other']);
+
+export const taxLineSchema = z.object({
+  id: z.string().min(1).max(60),
+  type: serviceType,
+  desc: z.string().trim().max(500).default(''),
+  amount: z.coerce.number().min(0, 'Amounts can’t be negative.'),
+  vat: z.coerce.number().refine((v) => v === 0 || v === 11, 'VAT must be 0% or 11%.'),
+});
+
+export const invoiceEditSchema = z.object({
+  date: isoDate,
+  dueDate: isoDate,
+  lines: z.array(taxLineSchema).max(100),
+  notes: z.string().max(4000).default(''),
+});
+
+export const paymentSchema = z.object({
+  date: isoDate,
+  amount: z.coerce.number().positive('Enter an amount above zero.'),
+  method: z.enum(['transfer', 'cash', 'card', 'cheque', 'wallet']).default('transfer'),
+  accountId: z.string().min(1, 'Choose the account.'),
+});
+
+export const purchaseSchema = z.object({
+  supplierId: z.string().min(1, 'Choose a supplier.'),
+  orderDate: isoDate,
+  billRef: z.string().trim().max(80).default(''),
+  billDate: z.union([z.literal(''), isoDate]).default(''),
+  lines: z.array(taxLineSchema).max(100),
+  notes: z.string().max(4000).default(''),
+});
+
+export const expenseSchema = z.object({
+  date: isoDate,
+  description: z.string().trim().min(1, 'Add a description.').max(300),
+  categoryId: z.string().min(1, 'Choose a category.'),
+  amount: z.coerce.number().min(0, 'The amount can’t be negative.'),
+  vat: z.coerce.number().refine((v) => v === 0 || v === 11, 'VAT must be 0% or 11%.'),
+  paidFrom: z.string().min(1, 'Choose how it was paid.'),
+  supplierId: z.string().default(''),
+  reference: z.string().trim().max(80).default(''),
+  notes: z.string().max(4000).default(''),
+});
+
+const idName = z.object({ id: z.string().trim().min(1).max(40), name: z.string().trim().min(1, 'Every entry needs a name.').max(80) });
+export const financeSchema = z.object({
+  terms: z.object({ customer: z.coerce.number().int().min(0).max(365), agency: z.coerce.number().int().min(0).max(365), corporate: z.coerce.number().int().min(0).max(365) }),
+  supplierTerms: z.coerce.number().int().min(0).max(365),
+  vat: z.object({ flight: z.coerce.number(), hotel: z.coerce.number(), transfer: z.coerce.number(), visa: z.coerce.number(), package: z.coerce.number(), insurance: z.coerce.number(), other: z.coerce.number() }),
+  accounts: z.array(idName.extend({ type: z.enum(['bank', 'cash', 'wallet', 'gateway']) })).min(1, 'Keep at least one bank or cash account.').max(30),
+  categories: z.array(idName).min(1, 'Keep at least one expense category.').max(60),
+  autoPO: z.enum(['yes', 'no']),
 });

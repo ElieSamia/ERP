@@ -1,7 +1,7 @@
 import { ObjectId, type Document, type WithId } from 'mongodb';
 import { db } from './db';
 import { escapeRegex, HttpError, oid } from './api';
-import { totals, CHANNEL, DEFAULT_PRICING, type Pricing } from './constants';
+import { totals, docTotals, CHANNEL, DEFAULT_PRICING, type Pricing } from './constants';
 import type { Booking, BookingDoc, Option } from './types';
 
 /** Booking numbers come from a counter, so two people saving at the same moment never get the same number. */
@@ -26,6 +26,7 @@ export function toBooking(d: WithId<Document>): Booking {
   };
 }
 
+
 async function decorate(list: Booking[]) {
   const d = await db();
   const cids = [...new Set(list.map((b) => b.contactId).filter((x) => ObjectId.isValid(x)))].map((x) => new ObjectId(x));
@@ -34,8 +35,15 @@ async function decorate(list: Booking[]) {
   const lids = [...new Set(list.map((b) => b.leadId).filter((x): x is string => !!x && ObjectId.isValid(x)))].map((x) => new ObjectId(x));
   const ls = lids.length ? await d.collection('leads').find({ _id: { $in: lids } }, { projection: { title: 1 } }).toArray() : [];
   const lmap = new Map(ls.map((l) => [String(l._id), String(l.title)]));
+  const bids = list.map((b) => b.id);
+  const invs = await d.collection('invoices').find({ bookingId: { $in: bids } }, { projection: { number: 1, bookingId: 1 } }).toArray();
+  const imap = new Map(invs.map((i) => [String(i.bookingId), { id: String(i._id), number: i.number ? String(i.number) : 'Draft invoice' }]));
+  const pos = await d.collection('purchases').find({ bookingId: { $in: bids } }, { projection: { ref: 1, status: 1, bookingId: 1 } }).toArray();
   return list.map((b) => ({
     ...b,
+    invoiceId: imap.get(b.id)?.id,
+    invoiceNumber: imap.get(b.id)?.number,
+    purchases: pos.filter((p) => String(p.bookingId) === b.id).map((p) => ({ id: String(p._id), ref: String(p.ref), status: String(p.status) })),
     contactName: cmap.get(b.contactId)?.name ?? 'Unknown customer',
     contactType: cmap.get(b.contactId)?.type ?? 'customer',
     leadTitle: b.leadId ? lmap.get(b.leadId) : undefined,
@@ -75,12 +83,16 @@ export async function channelRate(contactType: string) {
   return (await getPricing())[CHANNEL[contactType] ?? 'B2C'];
 }
 
-/** Money committed to an account: confirmed and ticketed bookings. Invoices join this in phase 3. */
+/** Money committed by an account: unpaid posted invoices plus confirmed or ticketed bookings not yet invoiced. */
 export async function exposure(contactId: string, excludeId?: string) {
+  const d = await db();
   const filter: Record<string, unknown> = { contactId, status: { $in: ['confirmed', 'ticketed'] } };
   if (excludeId) filter._id = { $ne: oid(excludeId) };
-  const list = await (await db()).collection('bookings').find(filter, { projection: { lines: 1 } }).toArray();
-  return list.reduce((s, b) => s + totals(b.lines || []).total, 0);
+  const list = await d.collection('bookings').find(filter, { projection: { lines: 1 } }).toArray();
+  const open = list.reduce((s, b) => s + totals(b.lines || []).total, 0);
+  const invs = await d.collection('invoices').find({ contactId, status: 'posted' }, { projection: { lines: 1, payments: 1 } }).toArray();
+  const due = invs.reduce((s, i) => s + docTotals(i.lines || [], i.payments || []).balance, 0);
+  return open + due;
 }
 
 /** Checks the customer and that every supplier on the services really is a supplier. */

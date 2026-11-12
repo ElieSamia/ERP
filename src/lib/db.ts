@@ -29,6 +29,13 @@ async function ensureIndexes(d: Db) {
     d.collection('bookings').createIndex({ ref: 1 }, { unique: true }),
     d.collection('bookings').createIndex({ contactId: 1, status: 1 }),
     d.collection('bookings').createIndex({ status: 1, createdAt: -1 }),
+    d.collection('invoices').createIndex({ contactId: 1, status: 1 }),
+    d.collection('invoices').createIndex({ bookingId: 1 }),
+    d.collection('invoices').createIndex({ number: 1 }, { unique: true, partialFilterExpression: { number: { $type: 'string' } } }),
+    d.collection('purchases').createIndex({ ref: 1 }, { unique: true }),
+    d.collection('purchases').createIndex({ bookingId: 1 }),
+    d.collection('purchases').createIndex({ supplierId: 1, status: 1 }),
+    d.collection('expenses').createIndex({ date: -1 }),
   ]);
 }
 
