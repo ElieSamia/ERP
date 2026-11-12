@@ -17,7 +17,15 @@ A travel agency ERP built with Next.js and MongoDB, following the design of the 
 - **Convert an opportunity to a booking** from the CRM; the opportunity becomes Won and links to the booking.
 - **Documents** on bookings: tickets, vouchers, e-visas and passports in a private Vercel Blob store. Large photos
   are shrunk in the browser before upload, and files open only through the app after a sign-in check.
-- **Printing**: booking confirmations (prices hidden by default, with a Show prices switch) and hotel vouchers,
+- **Invoicing** (phase 3): create a draft invoice from a confirmed or ticketed booking, with VAT per service type
+  from Settings, then post it to give it a number (INV/2026/0001). Record customer payments into a bank, cash or
+  wallet account; each payment gets a receipt number and a printable receipt. A Payments received tab lists them all.
+- **Purchasing** (phase 3): purchase orders are created per supplier when a booking is confirmed (or on demand),
+  then confirmed, billed with the supplier's bill number, and paid with a printable payment voucher.
+- **Expenses** (phase 3): water, stationery, rent and other running costs, by category, paid from an account or
+  on credit with a vendor, with a monthly total.
+- **Credit limits** now count unpaid invoices as well as open bookings.
+- **Printing**: invoices, payment receipts, purchase orders and payment vouchers, plus booking confirmations (prices hidden by default, with a Show prices switch) and hotel vouchers,
   ready to print or save as PDF.
 - Every API route checks the signed-in user on the server, and all input is validated before it reaches the database.
 
@@ -60,9 +68,12 @@ npm run dev                  # opens on http://localhost:3000
 | `contacts` | Customers, agencies, corporate accounts and suppliers |
 | `leads` | CRM opportunities, linked to a contact by `contactId` |
 | `activity` | The log and notes for each record (`model`, `recordId`) |
-| `settings` | Company details (`_id: "company"`) and markup rules (`_id: "pricing"`) |
+| `settings` | Company details (`company`), markup rules (`pricing`), payment terms, VAT, accounts and expense categories (`finance`) |
 | `bookings` | Trip files with their services, notes and document records (`ref`, `contactId`, `status`) |
-| `counters` | Running numbers for booking references |
+| `invoices` | Customer invoices with their lines and payments |
+| `purchases` | Purchase orders, supplier bills and payments to suppliers |
+| `expenses` | Running costs |
+| `counters` | Running numbers for bookings, invoices (per year), receipts, orders, vouchers and expenses |
 
 Indexes are created automatically the first time the app connects after each deployment.
 Document files themselves live in the private Blob store, never in MongoDB.
@@ -70,7 +81,7 @@ Document files themselves live in the private Blob store, never in MongoDB.
 ## Next phases
 
 1. ~~Bookings~~ (done in phase 2).
-2. Invoicing and payments with receipts, purchasing and expenses.
+2. ~~Invoicing and payments with receipts, purchasing and expenses~~ (done in phase 3).
 3. Accounting on the Lebanese chart of accounts, banks and wallets, currencies, reports.
 4. B2B portal: requests, quotes, approvals, portal roles and travel documents.
 5. Marketing, calendar, document layouts, appearance and WhatsApp or email sharing.
