@@ -421,3 +421,4 @@ a.app{text-decoration:none}
 .lines .mk .w-pct{width:90px}
 .fld-err{color:var(--red);font-size:13px;font-weight:500}
 .fld input[aria-invalid="true"],.lines input.bad{border-color:var(--red);box-shadow:0 0 0 1px var(--red)}
+a.chip,a.btn,a.crumb{text-decoration:none}
