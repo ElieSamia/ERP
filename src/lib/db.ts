@@ -38,6 +38,9 @@ async function ensureIndexes(d: Db) {
     d.collection('expenses').createIndex({ date: -1 }),
     // Share links delete themselves once they expire.
     d.collection('shares').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    d.collection('moves').createIndex({ key: 1 }, { unique: true, partialFilterExpression: { key: { $type: 'string' } } }),
+    d.collection('moves').createIndex({ status: 1, date: 1 }),
+    d.collection('moves').createIndex({ 'lines.account': 1, date: 1 }),
   ]);
 }
 

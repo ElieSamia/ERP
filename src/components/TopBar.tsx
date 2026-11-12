@@ -10,6 +10,7 @@ export const MODULES = [
   { href: '/invoicing', name: 'Invoicing' },
   { href: '/purchasing', name: 'Purchasing' },
   { href: '/expenses', name: 'Expenses' },
+  { href: '/accounting', name: 'Accounting' },
   { href: '/contacts', name: 'Contacts' },
   { href: '/settings', name: 'Settings' },
 ];

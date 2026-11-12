@@ -6,7 +6,7 @@ import type { Activity } from '@/lib/types';
 import { useToast } from './Toast';
 
 /** The chatter on every record: changes are logged by the server, notes are added here. */
-export function ActivityPanel({ model, id, refreshKey = 0 }: { model: 'contact' | 'lead' | 'booking' | 'invoice' | 'purchase' | 'expense'; id: string; refreshKey?: number }) {
+export function ActivityPanel({ model, id, refreshKey = 0 }: { model: 'contact' | 'lead' | 'booking' | 'invoice' | 'purchase' | 'expense' | 'move'; id: string; refreshKey?: number }) {
   const [items, setItems] = useState<Activity[] | null>(null);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);

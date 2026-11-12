@@ -150,3 +150,32 @@ export const financeSchema = z.object({
   categories: z.array(idName).min(1, 'Keep at least one expense category.').max(60),
   autoPO: z.enum(['yes', 'no']),
 });
+
+/* ---------- Accounting ---------- */
+export const moveLineSchema = z.object({
+  id: z.string().min(1).max(60),
+  account: z.string().max(10).default(''),
+  partnerId: z.string().default(''),
+  label: z.string().trim().max(200).default(''),
+  debit: z.coerce.number().min(0, 'Amounts can’t be negative.').default(0),
+  credit: z.coerce.number().min(0, 'Amounts can’t be negative.').default(0),
+});
+export const moveSchema = z.object({
+  journal: z.string().min(1).max(20),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Set the accounting date.'),
+  label: z.string().trim().max(200).default(''),
+  partnerId: z.string().default(''),
+  lines: z.array(moveLineSchema).max(200),
+});
+export const accountSchema = z.object({
+  code: z.string().trim().regex(/^[1-7]\d{1,5}$/, 'Use a code of 2 to 6 digits that starts with a class from 1 to 7.'),
+  name: z.string().trim().min(1, 'Name the account.').max(100),
+  type: z.enum(['asset', 'receivable', 'bank', 'cash', 'liability', 'payable', 'tax', 'equity', 'income', 'expense']),
+});
+const accCode = z.string().regex(/^\d{2,6}$/);
+export const accSettingsSchema = z.object({
+  rev: z.record(accCode), cost: z.record(accCode), expense: z.record(accCode), payment: z.record(accCode),
+  receivable: accCode, payable: accCode, vatOut: accCode, vatIn: accCode, openingOffset: accCode,
+  currencies: z.array(z.object({ code: z.string().regex(/^[A-Z]{3}$/, 'Use 3-letter currency codes, like EUR.'), name: z.string().trim().min(1).max(40), rate: z.coerce.number().positive('Rates must be above zero.') })).min(1).max(30),
+  ratesUpdated: z.string().default(''),
+});

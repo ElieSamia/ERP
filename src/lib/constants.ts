@@ -140,3 +140,53 @@ export function docTotals(lines: { amount: number; vat: number }[], payments: { 
 }
 export const todayISO = () => new Date().toISOString().slice(0, 10);
 export const addDays = (d: string, n: number) => { const x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+
+/* ---------- Accounting (phase 4) ---------- */
+export type AccType = 'asset' | 'receivable' | 'bank' | 'cash' | 'liability' | 'payable' | 'tax' | 'equity' | 'income' | 'expense';
+export const ACC_TYPES = [
+  ['asset', 'Asset'], ['receivable', 'Receivable'], ['bank', 'Bank'], ['cash', 'Cash'], ['liability', 'Liability'],
+  ['payable', 'Payable'], ['tax', 'Tax'], ['equity', 'Equity'], ['income', 'Income'], ['expense', 'Expense'],
+] as const;
+export const ACC_CLASSES: Record<string, string> = {
+  '1': 'Class 1, capital accounts', '2': 'Class 2, fixed assets', '3': 'Class 3, inventories', '4': 'Class 4, third-party accounts',
+  '5': 'Class 5, financial accounts', '6': 'Class 6, expenses', '7': 'Class 7, revenues',
+};
+export type LedgerAccount = { code: string; name: string; type: AccType };
+export type Currency = { code: string; name: string; rate: number };
+export type AccSettings = {
+  rev: Record<ServiceType, string>; cost: Record<ServiceType, string>; expense: Record<string, string>; payment: Record<string, string>;
+  receivable: string; payable: string; vatOut: string; vatIn: string; openingOffset: string; currencies: Currency[]; ratesUpdated: string;
+};
+export const DEFAULT_PAYMENT_LEDGER: Record<PayAccount['type'], string> = { bank: '5121', cash: '531', wallet: '5141', gateway: '515' };
+export const DEFAULT_ACC: AccSettings = {
+  rev: { flight: '7061', hotel: '7062', package: '7063', transfer: '7064', visa: '7064', insurance: '7064', other: '7064' },
+  cost: { flight: '6041', hotel: '6042', package: '6043', transfer: '6044', visa: '6044', insurance: '6044', other: '6044' },
+  expense: { water: '6061', electricity: '6062', fuel: '6063', stationery: '6064', internet: '626', rent: '613', maintenance: '615', cleaning: '628', bankfees: '627', other: '658' },
+  payment: { BNK: '5121', CSH: '531' },
+  receivable: '411', payable: '401', vatOut: '4427', vatIn: '4426', openingOffset: '121',
+  currencies: [
+    { code: 'USD', name: 'US dollar', rate: 1 }, { code: 'LBP', name: 'Lebanese pound', rate: 89500 }, { code: 'EUR', name: 'Euro', rate: 0.86 },
+    { code: 'AED', name: 'UAE dirham', rate: 3.6725 }, { code: 'SAR', name: 'Saudi riyal', rate: 3.75 },
+  ],
+  ratesUpdated: '2026-11-01',
+};
+export const MOVE_STATES = [['draft', 'Draft'], ['posted', 'Posted']] as const;
+export type MoveLine = { id: string; account: string; partnerId: string; label: string; debit: number; credit: number };
+export type Move = {
+  id: string; ref: string | null; journal: string; date: string; label: string; partnerId: string; status: 'draft' | 'posted';
+  lines: MoveLine[]; auto: boolean; origin?: { model: string; id: string }; createdAt?: string;
+};
+export const AGE = [['nd', 'Not yet due'], ['a30', '1 to 30 days'], ['a60', '31 to 60 days'], ['a90', '61 to 90 days'], ['a90p', 'Over 90 days']] as const;
+export function ageBucket(due: string, today: string) {
+  const d = Math.floor((Date.parse(today) - Date.parse(due)) / 86400000);
+  return d <= 0 ? 'nd' : d <= 30 ? 'a30' : d <= 60 ? 'a60' : d <= 90 ? 'a90' : 'a90p';
+}
+/** Periods for reports: a year, or one of its quarters (Lebanese VAT returns are quarterly). */
+export function periodRange(p: string): [string, string] {
+  const m = /^(\d{4})(?:-Q([1-4]))?$/.exec(p);
+  const y = m ? m[1] : new Date().getFullYear().toString();
+  if (!m || !m[2]) return [`${y}-01-01`, `${y}-12-31`];
+  const q = Number(m[2]);
+  const ends = ['03-31', '06-30', '09-30', '12-31'];
+  return [`${y}-${String((q - 1) * 3 + 1).padStart(2, '0')}-01`, `${y}-${ends[q - 1]}`];
+}
