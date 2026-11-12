@@ -414,3 +414,4 @@ a.btn{display:inline-flex;align-items:center;text-decoration:none}
 }
 a.tab{text-decoration:none;display:inline-block}
 .overdue{color:var(--red);font-weight:600}
+a.app{text-decoration:none}
