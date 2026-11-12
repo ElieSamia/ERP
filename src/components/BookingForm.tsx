@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { api } from '@/lib/client';
 import {
-  BOOKING_STATES, CHANNEL, SERVICE_TYPES, TRIP_TYPES, PO_STATES, PO_BADGE, fmtDate, label, money, sell, totals, travList, serviceDates, type Pricing,
+  BOOKING_STATES, CHANNEL, SERVICE_TYPES, TRIP_TYPES, PO_STATES, PO_BADGE, MARKUP_TYPES, fmtDate, fmtMarkup, label, money, sell, totals, travList, serviceDates, type Pricing, type MarkupType,
 } from '@/lib/constants';
 import type { Booking, BookingLine, Option } from '@/lib/types';
 import { TextField, SelectField, TextArea } from './Fields';
@@ -78,7 +78,9 @@ export function BookingForm({ initial, suppliers, pricing }: { initial?: Booking
   const linesEditable = status === 'draft' || status === 'confirmed';
   const headerEditable = status !== 'cancelled';
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setB({ ...b, [k]: v });
-  const rate = pricing[CHANNEL[b.contactType || 'customer']];
+  const channel = CHANNEL[b.contactType || 'customer'];
+  const rate = pricing[channel];
+  const rateType: MarkupType = pricing.modes?.[channel] ?? 'percent';
   const t = totals(b.lines);
   const supplierOpts: [string, string][] = [['', 'None'], ...suppliers.map((s) => [s.id, s.name] as [string, string])];
 
@@ -86,14 +88,26 @@ export function BookingForm({ initial, suppliers, pricing }: { initial?: Booking
   function setLine(id: string, patch: Partial<BookingLine>) { set('lines', b.lines.map((l) => (l.id === id ? { ...l, ...patch } : l))); }
   function addLine() {
     const svc = b.tripType === 'service';
-    set('lines', [...b.lines, { id: newId(), type: svc ? 'visa' : 'flight', desc: '', date: b.departDate || '', dateTo: '', supplierId: '', cost: 0, markup: rate }]);
+    set('lines', [...b.lines, { id: newId(), type: svc ? 'visa' : 'flight', desc: '', date: b.departDate || '', dateTo: '', supplierId: '', cost: 0, markup: rate, markupType: rateType }]);
   }
   function changeCustomer(id: string, name: string, type: string) {
-    const newRate = pricing[CHANNEL[type] ?? 'B2C'];
-    setB({ ...b, contactId: id, contactName: name, contactType: type as Draft['contactType'], lines: status === 'draft' ? b.lines.map((l) => ({ ...l, markup: newRate })) : b.lines });
+    const ch = CHANNEL[type] ?? 'B2C';
+    const newRate = pricing[ch];
+    const newType: MarkupType = pricing.modes?.[ch] ?? 'percent';
+    setB({ ...b, contactId: id, contactName: name, contactType: type as Draft['contactType'], lines: status === 'draft' ? b.lines.map((l) => ({ ...l, markup: newRate, markupType: newType })) : b.lines });
   }
 
+  const dateErrors = {
+    ret: b.tripType === 'return' && b.departDate && b.returnDate && b.returnDate < b.departDate ? 'The return date can’t be before the departure date.' : '',
+    lines: new Set(b.lines.filter((l) => l.date && l.dateTo && l.dateTo < l.date).map((l) => l.id)),
+  };
+  function setDepart(v: string) {
+    // Moving the departure past the return clears the return, so it has to be picked again.
+    setB({ ...b, departDate: v, returnDate: b.returnDate && v && b.returnDate < v ? '' : b.returnDate });
+  }
   async function save() {
+    if (dateErrors.ret) return toast(dateErrors.ret, 'err');
+    if (dateErrors.lines.size) return toast('A service ends before it starts. Check the From and To dates marked in red.', 'err');
     setBusy(true);
     try {
       if (booking) { applyResult(await api<Booking>(`/api/bookings/${booking.id}`, 'PATCH', payload(b))); toast('Booking saved.'); router.refresh(); }
@@ -173,8 +187,8 @@ export function BookingForm({ initial, suppliers, pricing }: { initial?: Booking
               <CustomerPicker value={b.contactId} name={b.contactName || ''} onChange={changeCustomer} disabled={!!booking && status !== 'draft'} />
               <TextField id="f-bdate" label="Booking date" type="date" value={b.bookingDate} onChange={(v) => set('bookingDate', v)} disabled={!headerEditable} />
               <SelectField id="f-trip" label="Trip type" value={b.tripType} options={TRIP_TYPES} onChange={(v) => set('tripType', v as Draft['tripType'])} disabled={!headerEditable} />
-              {b.tripType !== 'service' && <TextField id="f-dep" label="Departure" type="date" value={b.departDate} onChange={(v) => set('departDate', v)} disabled={!headerEditable} />}
-              {b.tripType === 'return' && <TextField id="f-ret" label="Return" type="date" value={b.returnDate} onChange={(v) => set('returnDate', v)} disabled={!headerEditable} />}
+              {b.tripType !== 'service' && <TextField id="f-dep" label="Departure" type="date" value={b.departDate} onChange={setDepart} disabled={!headerEditable} />}
+              {b.tripType === 'return' && <TextField id="f-ret" label="Return" type="date" value={b.returnDate} min={b.departDate} error={dateErrors.ret} onChange={(v) => set('returnDate', v)} disabled={!headerEditable} />}
               {b.tripType !== 'service' && <TextField id="f-from" label="From (airport code)" value={b.origin} onChange={(v) => set('origin', v.toUpperCase().slice(0, 3))} disabled={!headerEditable} />}
               {b.tripType !== 'service' && <TextField id="f-to" label="To (airport code)" value={b.destination} onChange={(v) => set('destination', v.toUpperCase().slice(0, 3))} disabled={!headerEditable} />}
               <TextField id="f-dname" label="Destination name" value={b.destinationName} onChange={(v) => set('destinationName', v)} disabled={!headerEditable} />
@@ -187,24 +201,27 @@ export function BookingForm({ initial, suppliers, pricing }: { initial?: Booking
             {b.lines.length ? (
               <div className="table-wrap">
                 <table className="lines">
-                  <thead><tr><th>Type</th><th>Description</th><th>From</th><th>To</th><th>Supplier</th><th className="num">Cost</th><th className="num">Markup %</th><th className="num">Price</th>{linesEditable && <th><span className="sr">Remove</span></th>}</tr></thead>
+                  <thead><tr><th>Type</th><th>Description</th><th>From</th><th>To</th><th>Supplier</th><th className="num">Cost</th><th className="num">Markup</th><th className="num">Price</th>{linesEditable && <th><span className="sr">Remove</span></th>}</tr></thead>
                   <tbody>
                     {b.lines.map((l) => linesEditable ? (
                       <tr key={l.id}>
                         <td><select aria-label="Service type" value={l.type} onChange={(e) => setLine(l.id, { type: e.target.value as BookingLine['type'] })}>{SERVICE_TYPES.map(([k, lb]) => <option key={k} value={k}>{lb}</option>)}</select></td>
                         <td><input className="w-desc" aria-label="Description" value={l.desc} onChange={(e) => setLine(l.id, { desc: e.target.value })} /></td>
-                        <td><input type="date" aria-label="Service date" value={l.date} onChange={(e) => setLine(l.id, { date: e.target.value })} /></td>
-                        <td><input type="date" aria-label="Service end date" value={l.dateTo} onChange={(e) => setLine(l.id, { dateTo: e.target.value })} /></td>
+                        <td><input type="date" aria-label="Service date" value={l.date} onChange={(e) => { const v = e.target.value; setLine(l.id, { date: v, dateTo: l.dateTo && v && l.dateTo < v ? '' : l.dateTo }); }} /></td>
+                        <td><input type="date" aria-label="Service end date" value={l.dateTo} min={l.date || undefined} aria-invalid={dateErrors.lines.has(l.id) || undefined} className={dateErrors.lines.has(l.id) ? 'bad' : ''} onChange={(e) => setLine(l.id, { dateTo: e.target.value })} /></td>
                         <td><select aria-label="Supplier" value={l.supplierId} onChange={(e) => setLine(l.id, { supplierId: e.target.value })}>{supplierOpts.map(([k, lb]) => <option key={k} value={k}>{lb}</option>)}</select></td>
                         <td className="num"><input className="w-num" type="number" min={0} step="0.01" aria-label="Cost" value={l.cost} onChange={(e) => setLine(l.id, { cost: parseFloat(e.target.value) || 0 })} /></td>
-                        <td className="num"><input className="w-pct" type="number" min={0} step="0.5" aria-label="Markup percent" value={l.markup} onChange={(e) => setLine(l.id, { markup: parseFloat(e.target.value) || 0 })} /></td>
+                        <td className="num"><span className="mk">
+                          <input className="w-pct" type="number" min={0} step={l.markupType === 'amount' ? '0.01' : '0.5'} aria-label={l.markupType === 'amount' ? 'Markup amount in USD' : 'Markup percent'} value={l.markup} onChange={(e) => setLine(l.id, { markup: parseFloat(e.target.value) || 0 })} />
+                          <select aria-label="Markup type" value={l.markupType ?? 'percent'} onChange={(e) => setLine(l.id, { markupType: e.target.value as MarkupType })}>{MARKUP_TYPES.map(([k, lb]) => <option key={k} value={k}>{lb}</option>)}</select>
+                        </span></td>
                         <td className="num">{money(sell(l))}</td>
                         <td><button className="icon-btn" aria-label="Remove service" onClick={() => set('lines', b.lines.filter((x) => x.id !== l.id))}>×</button></td>
                       </tr>
                     ) : (
                       <tr key={l.id}>
                         <td>{label(SERVICE_TYPES, l.type)}</td><td>{l.desc}</td><td>{l.date ? fmtDate(l.date) : ''}</td><td>{l.dateTo ? fmtDate(l.dateTo) : ''}</td>
-                        <td>{suppliers.find((s) => s.id === l.supplierId)?.name ?? ''}</td><td className="num">{money(l.cost)}</td><td className="num">{l.markup}%</td><td className="num">{money(sell(l))}</td>
+                        <td>{suppliers.find((s) => s.id === l.supplierId)?.name ?? ''}</td><td className="num">{money(l.cost)}</td><td className="num">{fmtMarkup(l.markup, l.markupType)}</td><td className="num">{money(sell(l))}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -212,7 +229,7 @@ export function BookingForm({ initial, suppliers, pricing }: { initial?: Booking
               </div>
             ) : <div className="empty">No services yet. Add a flight, hotel or other service to price this trip.</div>}
             {linesEditable && <div className="addrow"><button className="btn" onClick={addLine}>Add service</button>
-              <span className="muted" style={{ alignSelf: 'center', fontSize: 13.5 }}>New services get the {CHANNEL[b.contactType || 'customer']} markup of {rate}%.</span></div>}
+              <span className="muted" style={{ alignSelf: 'center', fontSize: 13.5 }}>New services get the {channel} markup of {fmtMarkup(rate, rateType)}. Choose % or USD on each service.</span></div>}
             <div className="totals">
               <div><span>Supplier cost</span><b>{money(t.cost)}</b></div>
               <div><span>Margin</span><b>{money(t.margin)}</b></div>

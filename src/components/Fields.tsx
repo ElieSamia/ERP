@@ -3,11 +3,13 @@ import type { ReactNode } from 'react';
 
 type Common = { label: string; id: string; wide?: boolean; disabled?: boolean };
 
-export function TextField({ label, id, wide, disabled, value, onChange, type = 'text', placeholder }: Common & { value: string; onChange: (v: string) => void; type?: string; placeholder?: string }) {
+export function TextField({ label, id, wide, disabled, value, onChange, type = 'text', placeholder, min, error }: Common & { value: string; onChange: (v: string) => void; type?: string; placeholder?: string; min?: string; error?: string }) {
   return (
     <label className={`fld ${wide ? 'wide' : ''}`} htmlFor={id}>
       <span>{label}</span>
-      <input id={id} type={type} value={value} placeholder={placeholder} disabled={disabled} onChange={(e) => onChange(e.target.value)} />
+      <input id={id} type={type} value={value} placeholder={placeholder} disabled={disabled} min={min || undefined}
+        aria-invalid={error ? true : undefined} aria-describedby={error ? `${id}-err` : undefined} onChange={(e) => onChange(e.target.value)} />
+      {error && <span id={`${id}-err`} className="fld-err">{error}</span>}
     </label>
   );
 }

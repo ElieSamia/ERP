@@ -74,7 +74,7 @@ export function InvoiceForm({ initial, finance }: { initial: Invoice; finance: F
               <ReadOnly label="Customer"><Link className="link" href={`/contacts/${inv.contactId}`}>{inv.contactName}</Link></ReadOnly>
               <ReadOnly label="Booking">{inv.bookingId ? <Link className="link" href={`/bookings/${inv.bookingId}`}>{inv.bookingRef}</Link> : 'None'}</ReadOnly>
               <TextField id="i-date" label="Invoice date" type="date" value={f.date} onChange={(v) => setF({ ...f, date: v })} disabled={!draft} />
-              <TextField id="i-due" label="Due date" type="date" value={f.dueDate} onChange={(v) => setF({ ...f, dueDate: v })} disabled={!draft} />
+              <TextField id="i-due" label="Due date" type="date" value={f.dueDate} min={f.date} error={f.dueDate && f.date && f.dueDate < f.date ? 'The due date can’t be before the invoice date.' : ''} onChange={(v) => setF({ ...f, dueDate: v })} disabled={!draft} />
               <TextArea id="i-notes" label="Notes printed on the invoice" value={f.notes} onChange={(v) => setF({ ...f, notes: v })} disabled={!draft} />
             </div>
           </section>
