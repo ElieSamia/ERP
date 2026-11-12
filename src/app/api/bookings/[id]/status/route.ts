@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { handle, HttpError, oid, requireUser } from '@/lib/api';
 import { exposure, getBooking } from '@/lib/bookings';
+import { getFinance, purchasesFromBooking } from '@/lib/finance';
 import { logActivity } from '@/lib/activity';
 import { money, totals } from '@/lib/constants';
 
@@ -36,14 +37,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (b.status !== 'confirmed') throw new HttpError(409, 'Confirm the booking before marking it as ticketed.');
       next = 'ticketed'; msg = 'Marked as ticketed.';
     } else if (action === 'cancel') {
+      if (b.status === 'invoiced') throw new HttpError(409, 'This booking is invoiced. Delete the draft invoice first, or issue a credit note when that arrives.');
       if (!['draft', 'confirmed', 'ticketed'].includes(b.status)) throw new HttpError(409, 'This booking can’t be cancelled.');
       next = 'cancelled'; msg = 'Booking cancelled.';
+      const open = await d.collection('purchases').find({ bookingId: id, status: { $in: ['draft', 'confirmed'] } }, { projection: { ref: 1 } }).toArray();
+      if (open.length) {
+        await d.collection('purchases').updateMany({ _id: { $in: open.map((p) => p._id) } }, { $set: { status: 'cancelled' } });
+        await d.collection('bookings').updateOne({ _id: oid(id) }, { $unset: { 'lines.$[].poId': '' } });
+        msg += ` Open purchase orders ${open.map((p) => p.ref).join(', ')} cancelled too.`;
+      }
     } else {
       if (b.status !== 'cancelled') throw new HttpError(409, 'Only cancelled bookings can go back to draft.');
       next = 'draft'; msg = 'Reset to draft.';
     }
     await d.collection('bookings').updateOne({ _id: oid(id) }, { $set: { status: next, updatedAt: new Date(), updatedBy: user.name } });
     await logActivity('booking', id, user.name, msg);
+    if (action === 'confirm' && (await getFinance()).autoPO === 'yes') await purchasesFromBooking(id, user.name);
     return getBooking(id);
   });
 }

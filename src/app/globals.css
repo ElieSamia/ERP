@@ -412,3 +412,5 @@ a.btn{display:inline-flex;align-items:center;text-decoration:none}
   .vpage+.vpage{break-before:page;border:0;margin:0;padding:0}
   @page{margin:16mm}
 }
+a.tab{text-decoration:none;display:inline-block}
+.overdue{color:var(--red);font-weight:600}
