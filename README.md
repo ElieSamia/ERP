@@ -25,6 +25,12 @@ A travel agency ERP built with Next.js and MongoDB, following the design of the 
 - **Expenses** (phase 3): water, stationery, rent and other running costs, by category, paid from an account or
   on credit with a vendor, with a monthly total.
 - **Credit limits** now count unpaid invoices as well as open bookings.
+- **Accounting** (phase 4, administrators only): journal entries are created automatically from posted invoices,
+  customer payments, supplier bills and payments, and posted expenses, on a starter Lebanese chart of accounts
+  (classes 1 to 7). If a document goes back to draft or changes, its entry follows. Manual entries cover opening
+  balances and adjustments and post only when debits equal credits. Reports: trial balance, general ledger,
+  profit and loss, balance sheet, VAT summary by quarter with LBP equivalents, and outstanding balances with ageing.
+  Settings choose which account each service, expense category and payment account posts to, and hold currency rates.
 - **Share links**: every printed document can be shared by email or WhatsApp. The ERP creates a random link that
   opens only that document, without signing in, and stops working after 30 days (or when cancelled). The message
   opens in your own email app or WhatsApp, and each share is noted in the record's activity log.
@@ -76,6 +82,8 @@ npm run dev                  # opens on http://localhost:3000
 | `invoices` | Customer invoices with their lines and payments |
 | `purchases` | Purchase orders, supplier bills and payments to suppliers |
 | `expenses` | Running costs |
+| `accounts` | Chart of accounts (code, name, type) |
+| `moves` | Journal entries; automatic ones carry the key of the document they come from |
 | `shares` | Share links for documents; they delete themselves when they expire |
 | `counters` | Running numbers for bookings, invoices (per year), receipts, orders, vouchers and expenses |
 
@@ -86,7 +94,7 @@ Document files themselves live in the private Blob store, never in MongoDB.
 
 1. ~~Bookings~~ (done in phase 2).
 2. ~~Invoicing and payments with receipts, purchasing and expenses~~ (done in phase 3).
-3. Accounting on the Lebanese chart of accounts, banks and wallets, currencies, reports.
+3. ~~Accounting on the Lebanese chart of accounts, currencies and reports~~ (done in phase 4).
 4. B2B portal: requests, quotes, approvals, portal roles and travel documents.
 5. Marketing, calendar, document layouts, appearance and WhatsApp or email sharing.
 
