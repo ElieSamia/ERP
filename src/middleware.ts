@@ -2,7 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { SESSION_COOKIE, verifySession } from '@/lib/session-token';
 
 // Pages and APIs anyone can reach without signing in.
-const PUBLIC = ['/login', '/setup', '/api/auth/login', '/api/setup', '/prototype.html'];
+// /s/ is a share link: one document, by an unguessable token that expires.
+const PUBLIC = ['/login', '/setup', '/api/auth/login', '/api/setup', '/prototype.html', '/s'];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;

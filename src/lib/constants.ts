@@ -86,6 +86,10 @@ export function travelDates(b: Datable) {
   return fmtRange(b.departDate, b.returnDate) || 'To be confirmed';
 }
 
+/* ---------- Printable documents and share links ---------- */
+export type DocKind = 'confirm' | 'vouchers' | 'invoice' | 'receipt' | 'po' | 'voucher';
+export const SHARE_DAYS = 30;
+
 /* ---------- Invoicing, purchasing and expenses (phase 3) ---------- */
 export const INVOICE_STATES = [['draft', 'Draft'], ['posted', 'Posted'], ['paid', 'Paid']] as const;
 export type InvoiceStatus = (typeof INVOICE_STATES)[number][0];
