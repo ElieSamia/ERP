@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { api } from '@/lib/client';
 import {
-  BOOKING_STATES, CHANNEL, SERVICE_TYPES, TRIP_TYPES, fmtDate, label, money, sell, totals, travList, serviceDates, type Pricing,
+  BOOKING_STATES, CHANNEL, SERVICE_TYPES, TRIP_TYPES, PO_STATES, PO_BADGE, fmtDate, label, money, sell, totals, travList, serviceDates, type Pricing,
 } from '@/lib/constants';
 import type { Booking, BookingLine, Option } from '@/lib/types';
 import { TextField, SelectField, TextArea } from './Fields';
@@ -107,6 +107,21 @@ export function BookingForm({ initial, suppliers, pricing }: { initial?: Booking
     try { applyResult(await api<Booking>(`/api/bookings/${booking.id}/status`, 'POST', { action })); toast(msg); router.refresh(); }
     catch (e) { toast((e as Error).message, 'err'); }
   }
+  async function createInvoice() {
+    if (!booking) return;
+    if (dirty) return toast('Save your changes first.', 'err');
+    try { const r = await api<{ id: string }>('/api/invoices', 'POST', { bookingId: booking.id }); toast('Draft invoice created.'); router.push(`/invoicing/${r.id}`); router.refresh(); }
+    catch (e) { toast((e as Error).message, 'err'); }
+  }
+  async function createPOs() {
+    if (!booking) return;
+    if (dirty) return toast('Save your changes first.', 'err');
+    try {
+      const r = await api<{ made: string[]; booking: Booking }>(`/api/bookings/${booking.id}/purchases`, 'POST');
+      applyResult(r.booking); router.refresh();
+      toast(r.made.length ? `Created ${r.made.join(', ')}.` : 'Every service with a supplier already has a purchase order.');
+    } catch (e) { toast((e as Error).message, 'err'); }
+  }
   async function remove() {
     if (!booking || !window.confirm(`Delete ${booking.ref}? Its documents are deleted too. This can’t be undone.`)) return;
     try { await api(`/api/bookings/${booking.id}`, 'DELETE'); toast('Booking deleted.'); router.push('/bookings'); router.refresh(); }
@@ -126,6 +141,9 @@ export function BookingForm({ initial, suppliers, pricing }: { initial?: Booking
           {booking && status === 'confirmed' && <button className="btn" onClick={() => act('ticket', 'Marked as ticketed.')}>Mark as ticketed</button>}
           {booking && ['draft', 'confirmed', 'ticketed'].includes(status) && <button className="btn" onClick={() => act('cancel', 'Booking cancelled.')}>Cancel booking</button>}
           {booking && status === 'cancelled' && <button className="btn" onClick={() => act('draft', 'Reset to draft.')}>Reset to draft</button>}
+          {booking && ['confirmed', 'ticketed'].includes(status) && !booking.invoiceId && <button className="btn" onClick={createInvoice}>Create invoice</button>}
+          {booking?.invoiceId && <Link className="btn" href={`/invoicing/${booking.invoiceId}`}>Open invoice {booking.invoiceNumber}</Link>}
+          {booking && ['confirmed', 'ticketed', 'invoiced'].includes(status) && saved.lines.some((l) => !l.poId && l.supplierId && l.cost > 0) && <button className="btn" onClick={createPOs}>Create purchase orders</button>}
           {booking && <a className="btn" href={`/print/booking/${booking.id}`} target="_blank" rel="noopener">Print confirmation</a>}
           {booking && hasHotel && <a className="btn" href={`/print/vouchers/${booking.id}`} target="_blank" rel="noopener">Hotel vouchers</a>}
           {booking && status === 'draft' && <button className="btn ghost" onClick={remove}>Delete</button>}
@@ -143,6 +161,11 @@ export function BookingForm({ initial, suppliers, pricing }: { initial?: Booking
         <div className="recmain">
           <Ticket b={b} booking={booking} />
           {booking?.leadId && <p className="linked">From opportunity <Link className="link" href={`/crm/${booking.leadId}`}>{booking.leadTitle || 'Open'}</Link></p>}
+          {!!booking?.purchases?.length && (
+            <p className="linked" style={{ flexWrap: 'wrap' }}>Purchase orders {booking.purchases.map((p) => (
+              <span key={p.id}><Link className="link" href={`/purchasing/${p.id}`}>{p.ref}</Link> <span className={`badge ${PO_BADGE[p.status]}`}>{label(PO_STATES, p.status)}</span> </span>
+            ))}</p>
+          )}
 
           <section className="sheet">
             <h2>Trip details</h2>
