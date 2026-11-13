@@ -10,6 +10,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const id = (await params).id;
     const r = await getRequestDoc(id);
     if (!r || r.contactId !== ctx.contactId || (ctx.perms.scope === 'own' && r.createdById !== ctx.userId)) throw new HttpError(404, 'Request not found.');
-    return attach('request', id, await readForm(req), `${ctx.name}, ${ctx.contactName}`);
+    return attach('request', id, await readForm(req), `${ctx.name}, ${ctx.contactName}`, { fromPortal: true });
   });
 }

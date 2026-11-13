@@ -25,7 +25,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const who = `${ctx.name}, ${ctx.contactName}`;
     form.set('kind', 'bill');
     form.set('traveller', '');
-    const docs = await attach('purchase', id, form, who);
+    const docs = await attach('purchase', id, form, who, { fromPortal: true });
     const doc = docs.at(-1)!;
     await (await db()).collection('purchases').updateOne({ _id: oid(id) }, { $set: { supplierBill: { ref: f.billRef, date: f.billDate, amount: f.amount, docId: doc.id, at: new Date(), by: who } } });
     await addOrderMessage(id, 'system', '', `Bill ${f.billRef} for ${money(f.amount)} uploaded by ${ctx.name}. Waiting for our accounts team to record it.`);
