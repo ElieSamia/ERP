@@ -4,6 +4,7 @@ import { handle, HttpError, oid, requireUser } from '@/lib/api';
 import { paymentSchema } from '@/lib/schemas';
 import { checkAccount, docTotals, getPurchase, voucherNumber } from '@/lib/finance';
 import { logActivity } from '@/lib/activity';
+import { addOrderMessage } from '@/lib/portal';
 import { money } from '@/lib/constants';
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -23,6 +24,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     await col.updateOne({ _id: oid(id) }, { $push: { payments: pay }, $set: { status: paid ? 'paid' : 'billed' } } as never);
     const acc = fin.accounts.find((a) => a.id === p.accountId)?.name;
     await logActivity('purchase', id, user.name, `Paid ${money(p.amount)} from ${acc}, voucher ${pay.ref}.${paid ? ' Fully paid.' : ''}`);
+    await addOrderMessage(id, 'system', '', `Payment ${pay.ref} of ${money(p.amount)} made.${paid ? ' This order is fully paid.' : ''}`);
     return { purchase: await getPurchase(id), paymentId: pay.id };
   });
 }

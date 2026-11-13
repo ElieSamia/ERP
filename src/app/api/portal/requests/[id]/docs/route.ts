@@ -1,6 +1,6 @@
 import { handle, HttpError } from '@/lib/api';
 import { getPortalSettings, getRequestDoc, requirePortal } from '@/lib/portal';
-import { attach } from '@/lib/attachments';
+import { attach, readForm } from '@/lib/attachments';
 
 /** Customers attach passports and other papers to their own requests, if their role and the portal settings allow. */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -10,6 +10,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const id = (await params).id;
     const r = await getRequestDoc(id);
     if (!r || r.contactId !== ctx.contactId || (ctx.perms.scope === 'own' && r.createdById !== ctx.userId)) throw new HttpError(404, 'Request not found.');
-    return attach('request', id, await req.formData(), `${ctx.name}, ${ctx.contactName}`);
+    return attach('request', id, await readForm(req), `${ctx.name}, ${ctx.contactName}`);
   });
 }

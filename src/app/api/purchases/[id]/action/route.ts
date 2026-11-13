@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { handle, HttpError, oid, requireUser } from '@/lib/api';
 import { docTotals, getPurchase } from '@/lib/finance';
 import { logActivity } from '@/lib/activity';
+import { addOrderMessage } from '@/lib/portal';
 import { todayISO } from '@/lib/constants';
 
 const schema = z.discriminatedUnion('action', [
@@ -41,6 +42,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
     await d.collection('purchases').updateOne({ _id: oid(id) }, { $set: { ...set, updatedAt: new Date(), updatedBy: user.name } });
     await logActivity('purchase', id, user.name, msg);
+    // What the supplier sees in their portal thread.
+    const told: Record<string, string> = { confirm: 'Order sent to you.', bill: 'Your bill was recorded.', cancel: 'Order cancelled by us.' };
+    if (told[body.action]) await addOrderMessage(id, 'system', '', told[body.action]);
     return getPurchase(id);
   });
 }
