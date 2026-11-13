@@ -9,6 +9,7 @@ import { TextField, TextArea, SelectField, ReadOnly } from './Fields';
 import { TaxLines } from './TaxLines';
 import { PaymentBox } from './PaymentBox';
 import { ActivityPanel } from './ActivityPanel';
+import { DocumentsPanel, uploadDoc } from './DocumentsPanel';
 import { Modal } from './Modal';
 import { useToast } from './Toast';
 
@@ -25,6 +26,8 @@ export function PurchaseForm({ initial, finance, suppliers }: { initial?: Purcha
   const [tick, setTick] = useState(0);
   const [busy, setBusy] = useState(false);
   const [bill, setBill] = useState<null | { billRef: string; billDate: string }>(null);
+  const [billFile, setBillFile] = useState<File | null>(null);
+  const [docKey, setDocKey] = useState(0);
   const status = po?.status ?? 'draft';
   const editable = status === 'draft' || status === 'confirmed';
   const dirty = JSON.stringify(f) !== JSON.stringify(saved);
@@ -41,8 +44,14 @@ export function PurchaseForm({ initial, finance, suppliers }: { initial?: Purcha
   async function act(body: Record<string, unknown>, msg: string) {
     if (!po) return;
     if (dirty) return toast('Save your changes first.', 'err');
-    try { apply(await api<Purchase>(`/api/purchases/${po.id}/action`, 'POST', body)); toast(msg); setBill(null); }
-    catch (e) { toast((e as Error).message, 'err'); }
+    try {
+      if (body.action === 'bill' && billFile) {
+        // Attach the bill first, so a failed upload doesn't leave a recorded bill without its file.
+        await uploadDoc('purchase', po.id, billFile, 'bill');
+      }
+      const r = await api<Purchase>(`/api/purchases/${po.id}/action`, 'POST', body);
+      apply(r); setDocKey((k) => k + 1); toast(billFile && body.action === 'bill' ? 'Supplier bill recorded and attached.' : msg); setBill(null); setBillFile(null);
+    } catch (e) { toast((e as Error).message, 'err'); }
   }
   async function remove() {
     if (!po || !window.confirm(`Delete ${po.ref}?`)) return;
@@ -97,6 +106,8 @@ export function PurchaseForm({ initial, finance, suppliers }: { initial?: Purcha
             <h2>Purchased services</h2>
             <TaxLines lines={f.lines} onChange={(lines) => setF({ ...f, lines })} editable={editable} amountLabel="Cost excl. VAT" vatFor={() => 0} payments={po?.payments ?? []} />
           </section>
+          {po && <DocumentsPanel key={docKey} model="purchase" id={po.id} docs={po.docs} defaultKind="bill" title="Supplier documents"
+            emptyText="No documents yet. Attach the supplier’s bill, quote or confirmation here." onChange={() => setTick((x) => x + 1)} />}
           {po && (status === 'billed' || status === 'paid') && (
             <PaymentBox title="Payments to supplier" payments={po.payments} accounts={finance.accounts} balance={t.balance} canPay={status === 'billed'}
               onPay={pay} printHref={(p) => `/print/voucher/${po.id}/${p.id}`} printLabel="Print voucher" emptyText="No payments yet." />
@@ -105,12 +116,14 @@ export function PurchaseForm({ initial, finance, suppliers }: { initial?: Purcha
         {po ? <ActivityPanel model="purchase" id={po.id} refreshKey={tick} /> : <aside className="chatter"><h3>Activity</h3><p className="muted" style={{ margin: 0 }}>Nothing is saved until you select Save.</p></aside>}
       </div>
       {bill && (
-        <Modal title="Record the supplier’s bill" onClose={() => setBill(null)}>
+        <Modal title="Record the supplier’s bill" onClose={() => { setBill(null); setBillFile(null); }}>
           <div className="grid">
             <TextField id="b-ref" label="Supplier bill number" value={bill.billRef} onChange={(v) => setBill({ ...bill, billRef: v })} />
             <TextField id="b-date" label="Bill date" type="date" value={bill.billDate} onChange={(v) => setBill({ ...bill, billDate: v })} />
           </div>
-          <p className="hint">The order total is what you owe. Adjust the lines first if the bill differs from the order.</p>
+          <label className="fld" htmlFor="b-file" style={{ marginTop: 12 }}><span>Attach the bill (optional), image or PDF up to 4 MB</span>
+            <input id="b-file" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="filein" onChange={(e) => setBillFile(e.target.files?.[0] ?? null)} /></label>
+          <p className="hint">The order total is what you owe. Adjust the lines first if the bill differs from the order. You can also attach or replace the bill later under Supplier documents.</p>
           <div className="dlg-actions"><button className="btn" onClick={() => setBill(null)}>Cancel</button><button className="btn primary" onClick={() => act({ action: 'bill', ...bill }, 'Supplier bill recorded.')}>Record bill</button></div>
         </Modal>
       )}

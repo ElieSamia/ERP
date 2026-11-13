@@ -245,7 +245,8 @@ export function BookingForm({ initial, suppliers, pricing }: { initial?: Booking
             </div>
           </section>
 
-          {booking ? <DocumentsPanel booking={booking} onChange={(r) => { setBooking(r); setTick((x) => x + 1); }} /> :
+          {booking ? <DocumentsPanel model="booking" id={booking.id} docs={booking.docs} travellers={travList(b.travellers)} defaultKind="ticket" showPortal
+            emptyText="No documents yet. Attach tickets, vouchers, e-visas or passports here." onChange={() => setTick((x) => x + 1)} /> :
             <section className="sheet"><h2>Documents</h2><p className="muted" style={{ margin: 0 }}>Save the booking first, then attach tickets, vouchers and passports.</p></section>}
         </div>
         {booking ? <ActivityPanel model="booking" id={booking.id} refreshKey={tick} /> :

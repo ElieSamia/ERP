@@ -7,9 +7,10 @@ import { EXP_STATES, VAT_RATES, money, r2, todayISO, type Finance } from '@/lib/
 import type { Expense, Option } from '@/lib/types';
 import { TextField, TextArea, SelectField, NumberField } from './Fields';
 import { ActivityPanel } from './ActivityPanel';
+import { DocumentsPanel } from './DocumentsPanel';
 import { useToast } from './Toast';
 
-type Draft = Omit<Expense, 'id' | 'ref' | 'status' | 'supplierName' | 'createdAt'>;
+type Draft = Omit<Expense, 'id' | 'ref' | 'status' | 'supplierName' | 'createdAt' | 'docs'>;
 const pick = (e: Expense): Draft => ({ date: e.date, description: e.description, categoryId: e.categoryId, amount: e.amount, vat: e.vat, paidFrom: e.paidFrom, supplierId: e.supplierId, reference: e.reference, notes: e.notes });
 
 export function ExpenseForm({ initial, finance, suppliers }: { initial?: Expense; finance: Finance; suppliers: Option[] }) {
@@ -75,6 +76,9 @@ export function ExpenseForm({ initial, finance, suppliers }: { initial?: Expense
             </div>
             <div className="totals"><div><span>VAT</span><b>{money(vatAmt)}</b></div><div className="grand"><span>Total incl. VAT</span><b>{money(r2(f.amount + vatAmt))}</b></div></div>
           </section>
+          {exp ? <DocumentsPanel model="expense" id={exp.id} docs={exp.docs} defaultKind="receipt" title="Receipts and invoices"
+            emptyText="No receipt yet. Attach a photo or PDF of the receipt or the vendor’s invoice." onChange={() => setTick((x) => x + 1)} />
+            : <section className="sheet"><h2>Receipts and invoices</h2><p className="muted" style={{ margin: 0 }}>Save the expense first, then attach its receipt.</p></section>}
         </div>
         {exp ? <ActivityPanel model="expense" id={exp.id} refreshKey={tick} /> : <aside className="chatter"><h3>Activity</h3><p className="muted" style={{ margin: 0 }}>Nothing is saved until you select Save.</p></aside>}
       </div>
