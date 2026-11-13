@@ -1,12 +1,13 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { getPortalCtx, getPortalSettings, visibleBookings, visibleRequests } from '@/lib/portal';
+import { getPortalCtx, getPortalSettings, supplierOrders, visibleBookings, visibleRequests, type PortalCtx } from '@/lib/portal';
 import { listInvoices } from '@/lib/finance';
-import { OPEN_REQ, docTotals, fmtDate, money, todayISO, travelDates } from '@/lib/constants';
+import { OPEN_REQ, ORDER_LABEL, docTotals, fmtDate, money, todayISO, travelDates } from '@/lib/constants';
 
 export default async function PortalHome() {
   const ctx = await getPortalCtx();
   if (!ctx) redirect('/portal/login');
+  if (ctx.side === 'supplier') return <SupplierHome ctx={ctx} />;
   const p = ctx.perms;
   const [s, reqs, bks, invs] = await Promise.all([getPortalSettings(), visibleRequests(ctx), visibleBookings(ctx), p.invoices === 'yes' ? listInvoices({}) : Promise.resolve([])]);
   const today = todayISO();
@@ -43,6 +44,41 @@ export default async function PortalHome() {
         {p.bookings !== 'none' && <section className="sheet"><h2>Upcoming trips</h2>
           {upcoming.length ? <ul className="agenda">{upcoming.slice(0, 6).map((b) => <li key={b.id}><Link className="ag" href={`/portal/bookings/${b.id}`}><i className="dot k-flight" aria-hidden="true" /><span className="ag-time" /><span><b>{b.destinationName || b.ref}, {travelDates(b)}</b><span className="muted ag-sub">{b.ref}</span></span></Link></li>)}</ul>
             : <p className="muted" style={{ margin: 0 }}>No upcoming trips.</p>}
+        </section>}
+      </div>
+    </>
+  );
+}
+
+/** A supplier's dashboard: orders to confirm, bills to send, and what we still owe them. */
+async function SupplierHome({ ctx }: { ctx: PortalCtx }) {
+  const p = ctx.perms;
+  const orders = await supplierOrders(ctx);
+  const toConfirm = orders.filter((o) => o.status === 'confirmed' && !o.supplierAck);
+  const toBill = orders.filter((o) => o.status === 'confirmed' && o.supplierAck && !o.supplierBill);
+  const owed = orders.filter((o) => o.status === 'billed').reduce((s, o) => s + docTotals(o.lines, o.payments).balance, 0);
+  const recent = orders.flatMap((o) => o.payments.map((x) => ({ ...x, poRef: o.ref }))).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
+  const att = [
+    ...(p.orders === 'respond' ? toConfirm.map((o) => ({ href: `/portal/orders/${o.id}`, t: `Please confirm ${o.ref}`, s: `Ordered ${fmtDate(o.orderDate)}, ${money(docTotals(o.lines).total)}` })) : []),
+    ...(p.bills === 'upload' ? toBill.map((o) => ({ href: `/portal/orders/${o.id}`, t: `Send your bill for ${o.ref}`, s: `Confirmed${o.supplierAck?.ref ? `, your reference ${o.supplierAck.ref}` : ''}` })) : []),
+    ...orders.filter((o) => o.thread.at(-1)?.side === 'staff').map((o) => ({ href: `/portal/orders/${o.id}`, t: `New message on ${o.ref}`, s: ORDER_LABEL(o)[0] })),
+  ];
+  return (
+    <>
+      <section className="pwelcome"><div><h1>Welcome, {ctx.name.split(' ')[0]}</h1><p>{ctx.contactName}. Your purchase orders, bills and payments with us.</p></div></section>
+      <div className="kpis">
+        {p.orders !== 'none' && <div className="kpi"><span>To confirm</span><b>{toConfirm.length}</b></div>}
+        {p.bills === 'upload' && <div className="kpi"><span>Waiting for your bill</span><b>{toBill.length}</b></div>}
+        {p.payments === 'yes' && <div className="kpi"><span>Billed, not yet paid</span><b>{money(owed)}</b></div>}
+      </div>
+      <div className="rgrid">
+        <section className="sheet"><h2>Needs your attention</h2>
+          {att.length ? <ul className="agenda">{att.map((a) => <li key={a.href + a.t}><Link className="ag" href={a.href}><i className="dot k-due" aria-hidden="true" /><span className="ag-time" /><span><b>{a.t}</b><span className="muted ag-sub">{a.s}</span></span></Link></li>)}</ul>
+            : <p className="muted" style={{ margin: 0 }}>Nothing right now.</p>}
+        </section>
+        {p.payments === 'yes' && <section className="sheet"><h2>Recent payments</h2>
+          {recent.length ? <ul className="agenda">{recent.map((x) => <li key={x.id}><Link className="ag" href="/portal/payments"><i className="dot k-pay" aria-hidden="true" /><span className="ag-time" /><span><b>{money(x.amount)}, {fmtDate(x.date)}</b><span className="muted ag-sub">{x.ref} for {x.poRef}</span></span></Link></li>)}</ul>
+            : <p className="muted" style={{ margin: 0 }}>No payments yet.</p>}
         </section>}
       </div>
     </>

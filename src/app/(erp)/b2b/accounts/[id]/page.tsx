@@ -16,8 +16,7 @@ export default async function AccountPage({ params }: { params: Promise<{ id: st
         <div className="cp-actions"><Link className="btn" href={`/contacts/${c.id}`}>Open contact</Link></div>
       </div>
       {c.portalAccess !== 'yes' && <p className="banner">Portal access is off for this account, so its users can’t sign in. Turn on Portal access on the contact.</p>}
-      {c.type === 'supplier' ? <div className="empty">Supplier portal users come in the next part of this phase.</div>
-        : <PortalUsersPanel contactId={c.id} contactName={c.name} initial={users} roles={roles} />}
+      <PortalUsersPanel contactId={c.id} contactName={c.name} initial={users} roles={roles.filter((r) => r.side === (c.type === 'supplier' ? 'supplier' : 'customer'))} />
     </>
   );
 }

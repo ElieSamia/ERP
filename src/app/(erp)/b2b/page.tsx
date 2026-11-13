@@ -43,19 +43,19 @@ export default async function B2BPage({ searchParams }: { searchParams: SP }) {
       </>
     );
   } else if (tab === 'accounts') {
-    const cs = await d.collection('contacts').find({ $or: [{ portalAccess: 'yes' }, { type: 'agency' }], type: { $ne: 'supplier' } }).sort({ name: 1 }).toArray();
+    const cs = await d.collection('contacts').find({ $or: [{ portalAccess: 'yes' }, { type: 'agency' }] }).sort({ name: 1 }).toArray();
     const users = await d.collection('portalUsers').aggregate([{ $group: { _id: '$contactId', n: { $sum: 1 }, active: { $sum: { $cond: ['$active', 1, 0] } } } }]).toArray();
     const open = await d.collection('requests').aggregate([{ $match: { status: { $in: OPEN_REQ } } }, { $group: { _id: '$contactId', n: { $sum: 1 } } }]).toArray();
     body = cs.length === 0 ? <div className="empty">No customer has portal access yet. Open a contact and tick Portal access, then invite its users here.</div> : (
       <>
         <div className="table-wrap"><table>
-          <thead><tr><th>Account</th><th>Portal</th><th className="num">Users</th><th className="num">Open requests</th></tr></thead>
+          <thead><tr><th>Account</th><th>Side</th><th>Portal</th><th className="num">Users</th><th className="num">Open requests</th></tr></thead>
           <tbody>{cs.map((c) => { const u = users.find((x) => x._id === String(c._id)); return (
-            <tr key={String(c._id)}><td><Link href={`/b2b/accounts/${c._id}`}><strong>{String(c.name)}</strong></Link></td>
+            <tr key={String(c._id)}><td><Link href={`/b2b/accounts/${c._id}`}><strong>{String(c.name)}</strong></Link></td><td>{c.type === 'supplier' ? 'Supplier' : 'Customer'}</td>
               <td>{c.portalAccess === 'yes' ? <span className="badge b-green">Enabled</span> : <span className="badge b-red">Disabled</span>}</td>
-              <td className="num">{u ? `${u.active} of ${u.n} active` : '0'}</td><td className="num">{open.find((x) => x._id === String(c._id))?.n ?? 0}</td></tr>); })}
+              <td className="num">{u ? `${u.active} of ${u.n} active` : '0'}</td><td className="num">{c.type === 'supplier' ? '' : open.find((x) => x._id === String(c._id))?.n ?? 0}</td></tr>); })}
           </tbody></table></div>
-        <p className="hint">Any customer, agency or corporate account can use the portal: tick Portal access on its contact. Supplier access comes in the next part.</p>
+        <p className="hint">Any customer, agency, corporate account or supplier can use the portal: tick Portal access on its contact, then invite its people here. Suppliers see their purchase orders, bills and payments instead of requests and bookings.</p>
       </>
     );
   } else if (tab === 'roles') {

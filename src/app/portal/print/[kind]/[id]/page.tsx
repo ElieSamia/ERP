@@ -1,6 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import { canSeeBooking, getPortalCtx } from '@/lib/portal';
 import { getInvoice } from '@/lib/finance';
+import { supplierOrder } from '@/lib/portal';
 import { loadDoc } from '@/lib/printdocs';
 import { PrintButton } from '@/components/PrintBar';
 
@@ -14,17 +15,24 @@ export default async function PortalPrint({ params, searchParams }: { params: Pr
   const pid = (await searchParams).pid;
   const p = ctx.perms;
   let ok = false;
-  if (kind === 'confirm' || kind === 'vouchers') {
+  if ((kind === 'confirm' || kind === 'vouchers') && ctx.side === 'customer') {
     const b = await canSeeBooking(ctx, id);
     ok = !!b && ['confirmed', 'ticketed', 'invoiced'].includes(b.status);
-  } else if (kind === 'invoice' || kind === 'receipt') {
+  } else if ((kind === 'invoice' || kind === 'receipt') && ctx.side === 'customer') {
     const inv = p.invoices === 'yes' ? await getInvoice(id) : null;
     ok = !!inv && inv.contactId === ctx.contactId && inv.status !== 'draft' && (kind === 'invoice' || inv.payments.some((x) => x.id === pid));
   } else if (kind === 'statement') {
-    ok = p.statement === 'yes' && id === ctx.contactId;
+    ok = ctx.side === 'customer' && p.statement === 'yes' && id === ctx.contactId;
+  } else if (kind === 'supstatement') {
+    ok = ctx.side === 'supplier' && p.statement === 'yes' && id === ctx.contactId;
+  } else if (kind === 'po') {
+    ok = !!(await supplierOrder(ctx, id));
+  } else if (kind === 'voucher') {
+    const po = p.payments === 'yes' ? await supplierOrder(ctx, id) : null;
+    ok = !!po && po.payments.some((x) => x.id === pid);
   }
   if (!ok) notFound();
-  const doc = await loadDoc(kind as 'confirm' | 'vouchers' | 'invoice' | 'receipt' | 'statement', id, pid, { prices: kind === 'confirm' && p.prices === 'yes' });
+  const doc = await loadDoc(kind as 'confirm' | 'vouchers' | 'invoice' | 'receipt' | 'statement' | 'supstatement' | 'po' | 'voucher', id, pid, { prices: kind === 'confirm' && p.prices === 'yes' });
   if (!doc) notFound();
   return (
     <div className="printpage">

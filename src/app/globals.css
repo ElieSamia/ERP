@@ -425,3 +425,4 @@ a.chip,a.btn,a.crumb{text-decoration:none}
 a.ag{text-decoration:none}
 .printpage.inline{padding:0;background:none}
 .printpage.inline .paper{margin:0 auto;box-shadow:none;border:1px solid var(--line)}
+.linkbtn{border:0;background:none;color:var(--accent);font:inherit;font-size:13px;cursor:pointer;padding:0 0 0 6px;text-decoration:underline}
