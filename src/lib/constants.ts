@@ -49,7 +49,8 @@ export const BOOK_BADGE: Record<string, string> = { draft: '', confirmed: 'b-acc
 export const DOC_KINDS = [
   ['ticket', 'E-ticket'], ['voucher', 'Hotel voucher'], ['tvoucher', 'Transfer voucher'], ['avoucher', 'Tour or activity voucher'],
   ['evisa', 'E-visa'], ['visa', 'Visa'], ['insurance', 'Insurance policy'], ['itinerary', 'Itinerary'],
-  ['passport', 'Passport'], ['id', 'ID card'], ['photo', 'Photo'], ['other', 'Other'],
+  ['passport', 'Passport'], ['id', 'ID card'], ['photo', 'Photo'],
+  ['bill', 'Supplier bill or invoice'], ['quote', 'Supplier quote or confirmation'], ['receipt', 'Receipt'], ['other', 'Other'],
 ] as const;
 
 export type Channel = 'B2C' | 'B2B' | 'Corporate';

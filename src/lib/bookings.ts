@@ -2,7 +2,8 @@ import { ObjectId, type Document, type WithId } from 'mongodb';
 import { db } from './db';
 import { escapeRegex, HttpError, oid } from './api';
 import { totals, docTotals, CHANNEL, DEFAULT_PRICING, type Pricing } from './constants';
-import type { Booking, BookingDoc, Option } from './types';
+import type { Booking, Option } from './types';
+import { publicDocs } from './attachments';
 
 /** Booking numbers come from a counter, so two people saving at the same moment never get the same number. */
 export async function nextBookingRef() {
@@ -14,9 +15,7 @@ export async function nextBookingRef() {
 
 /** Shapes a booking for the browser. File storage paths never leave the server. */
 export function toBooking(d: WithId<Document>): Booking {
-  const docs = ((d.docs as (BookingDoc & { pathname?: string; url?: string })[]) || []).map((x) => ({
-    id: x.id, kind: x.kind, traveller: x.traveller || '', name: x.name, size: x.size, type: x.type, at: x.at, by: x.by, shared: x.shared === 'no' ? 'no' : 'yes',
-  })) as BookingDoc[];
+  const docs = publicDocs(d.docs);
   return {
     id: String(d._id), ref: d.ref, contactId: d.contactId, tripType: d.tripType || 'return', bookingDate: d.bookingDate || '',
     origin: d.origin || '', destination: d.destination || '', destinationName: d.destinationName || '', departDate: d.departDate || '',

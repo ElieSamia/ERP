@@ -87,9 +87,9 @@ export type Invoice = {
 };
 export type Purchase = {
   id: string; ref: string; supplierId: string; supplierName?: string; bookingId?: string; bookingRef?: string; orderDate: string;
-  billRef: string; billDate: string; status: PurchaseStatus; lines: TaxLine[]; payments: Payment[]; notes: string; ack?: string; createdAt?: string;
+  billRef: string; billDate: string; status: PurchaseStatus; lines: TaxLine[]; payments: Payment[]; notes: string; ack?: string; docs: BookingDoc[]; createdAt?: string;
 };
 export type Expense = {
   id: string; ref: string; date: string; description: string; categoryId: string; amount: number; vat: number; paidFrom: string;
-  supplierId: string; supplierName?: string; reference: string; status: ExpenseStatus; notes: string; createdAt?: string;
+  supplierId: string; supplierName?: string; reference: string; status: ExpenseStatus; notes: string; docs: BookingDoc[]; createdAt?: string;
 };

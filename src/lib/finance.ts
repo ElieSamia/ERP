@@ -5,6 +5,7 @@ import { escapeRegex, HttpError, oid } from './api';
 import { DEFAULT_FINANCE, type Finance, docTotals, sell, todayISO, type MarkupType } from './constants';
 import { logActivity } from './activity';
 import type { Expense, Invoice, Payment, Purchase, TaxLine } from './types';
+import { publicDocs } from './attachments';
 
 /* ---------- Settings and numbering ---------- */
 export async function getFinance(): Promise<Finance> {
@@ -39,11 +40,11 @@ export const toInvoice = (d: WithId<Document>): Invoice => ({
 });
 export const toPurchase = (d: WithId<Document>): Purchase => ({
   id: String(d._id), ref: d.ref, supplierId: d.supplierId, bookingId: d.bookingId || undefined, orderDate: d.orderDate, billRef: d.billRef || '',
-  billDate: d.billDate || '', status: d.status, lines: lines(d.lines), payments: pays(d.payments), notes: d.notes || '', ack: d.ack || undefined, createdAt: iso(d.createdAt),
+  billDate: d.billDate || '', status: d.status, lines: lines(d.lines), payments: pays(d.payments), notes: d.notes || '', ack: d.ack || undefined, docs: publicDocs(d.docs), createdAt: iso(d.createdAt),
 });
 export const toExpense = (d: WithId<Document>): Expense => ({
   id: String(d._id), ref: d.ref, date: d.date, description: d.description, categoryId: d.categoryId, amount: Number(d.amount) || 0, vat: Number(d.vat) || 0,
-  paidFrom: d.paidFrom, supplierId: d.supplierId || '', reference: d.reference || '', status: d.status, notes: d.notes || '', createdAt: iso(d.createdAt),
+  paidFrom: d.paidFrom, supplierId: d.supplierId || '', reference: d.reference || '', status: d.status, notes: d.notes || '', docs: publicDocs(d.docs), createdAt: iso(d.createdAt),
 });
 
 async function names(ids: string[]) {
