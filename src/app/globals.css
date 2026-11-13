@@ -422,3 +422,6 @@ a.app{text-decoration:none}
 .fld-err{color:var(--red);font-size:13px;font-weight:500}
 .fld input[aria-invalid="true"],.lines input.bad{border-color:var(--red);box-shadow:0 0 0 1px var(--red)}
 a.chip,a.btn,a.crumb{text-decoration:none}
+a.ag{text-decoration:none}
+.printpage.inline{padding:0;background:none}
+.printpage.inline .paper{margin:0 auto;box-shadow:none;border:1px solid var(--line)}

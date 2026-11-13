@@ -1,0 +1,19 @@
+import { notFound, redirect } from 'next/navigation';
+import { getSession } from '@/lib/auth';
+import { loadDoc } from '@/lib/printdocs';
+import { PrintBar } from '@/components/PrintBar';
+
+export const dynamic = 'force-dynamic';
+
+export default async function PrintStatement({ params }: { params: Promise<{ id: string }> }) {
+  if (!(await getSession())) redirect('/login');
+  const { id } = await params;
+  const doc = await loadDoc('statement', id);
+  if (!doc) notFound();
+  return (
+    <div className="printpage">
+      <PrintBar back={doc.back} backLabel={doc.backLabel} share={{ kind: 'statement', id }} />
+      {doc.node}
+    </div>
+  );
+}

@@ -15,10 +15,6 @@ async function activeTrips(d: Db) {
   }).length;
 }
 
-const SOON = [
-  ['B2B portal', 'globe', 'Agency requests and access'],
-] as const;
-
 export default async function Home() {
   const [company, user, d] = await Promise.all([getCompany(), getSession(), db()]);
   const [open, contacts, active] = await Promise.all([
@@ -26,6 +22,7 @@ export default async function Home() {
     d.collection('contacts').countDocuments(),
     activeTrips(d),
   ]);
+  const reqs = await d.collection('requests').countDocuments({ status: { $in: ['submitted', 'review', 'quoted', 'approval', 'accepted'] } });
   const [unpaid, openPOs, draftExp] = await Promise.all([
     d.collection('invoices').countDocuments({ status: 'posted' }),
     d.collection('purchases').countDocuments({ status: { $in: ['draft', 'confirmed', 'billed'] } }),
@@ -42,11 +39,9 @@ export default async function Home() {
         <Link className="app" href="/purchasing"><span className="ico"><Icon name="cart" /></span><b>Purchasing</b><span>{openPOs} open order{openPOs === 1 ? '' : 's'}</span></Link>
         <Link className="app" href="/expenses"><span className="ico"><Icon name="receipt" /></span><b>Expenses</b><span>{draftExp} draft{draftExp === 1 ? '' : 's'} to post</span></Link>
         <Link className="app" href="/accounting"><span className="ico"><Icon name="ledger" /></span><b>Accounting</b><span>Journal, reports and VAT, administrators only</span></Link>
+        <Link className="app" href="/b2b"><span className="ico"><Icon name="globe" /></span><b>B2B portal</b><span>{reqs} open request{reqs === 1 ? '' : 's'} from customers</span></Link>
         <Link className="app" href="/contacts"><span className="ico"><Icon name="person" /></span><b>Contacts</b><span>{contacts} customers, agencies and suppliers</span></Link>
         <Link className="app" href="/settings"><span className="ico"><Icon name="gear" /></span><b>Settings</b><span>Company, markups, payments and staff users</span></Link>
-        {SOON.map(([n, i, d2]) => (
-          <div key={n} className="app soon" aria-disabled="true"><span className="ico"><Icon name={i} /></span><b>{n}</b><span>Coming in the next phases. {d2}.</span></div>
-        ))}
       </div>
       <div className="homefoot"><span>The clickable prototype stays available at <a href="/prototype.html">/prototype.html</a> as a reference.</span></div>
     </section>
