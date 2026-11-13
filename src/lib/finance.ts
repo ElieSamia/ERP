@@ -40,7 +40,10 @@ export const toInvoice = (d: WithId<Document>): Invoice => ({
 });
 export const toPurchase = (d: WithId<Document>): Purchase => ({
   id: String(d._id), ref: d.ref, supplierId: d.supplierId, bookingId: d.bookingId || undefined, orderDate: d.orderDate, billRef: d.billRef || '',
-  billDate: d.billDate || '', status: d.status, lines: lines(d.lines), payments: pays(d.payments), notes: d.notes || '', ack: d.ack || undefined, docs: publicDocs(d.docs), createdAt: iso(d.createdAt),
+  billDate: d.billDate || '', status: d.status, lines: lines(d.lines), payments: pays(d.payments), notes: d.notes || '', docs: publicDocs(d.docs), createdAt: iso(d.createdAt),
+  supplierAck: d.supplierAck ? { ref: String(d.supplierAck.ref || ''), at: iso(d.supplierAck.at) ?? '', by: String(d.supplierAck.by || '') } : undefined,
+  thread: ((d.thread as { at: unknown; by: string; side: 'customer' | 'staff' | 'system'; text: string }[]) || []).map((m) => ({ by: m.by, side: m.side, text: m.text, at: iso(m.at) ?? '' })),
+  supplierBill: d.supplierBill ? { ...d.supplierBill, at: iso(d.supplierBill.at) ?? '' } : undefined,
 });
 export const toExpense = (d: WithId<Document>): Expense => ({
   id: String(d._id), ref: d.ref, date: d.date, description: d.description, categoryId: d.categoryId, amount: Number(d.amount) || 0, vat: Number(d.vat) || 0,

@@ -27,6 +27,7 @@ export function PortalUsersPanel({ contactId, contactName, initial, roles, endpo
   const [users, setUsers] = useState(initial);
   const [n, setN] = useState({ name: '', email: '', roleId: roles[0]?.id ?? 'admin' });
   const [link, setLink] = useState<null | { url: string; name: string }>(null);
+  const [editing, setEditing] = useState<null | { id: string; name: string; email: string }>(null);
   const toast = useToast();
   const portalSide = endpoint.startsWith('/api/portal');
   async function invite() {
@@ -53,7 +54,7 @@ export function PortalUsersPanel({ contactId, contactName, initial, roles, endpo
         <tbody>
           {users.map((u) => (
             <tr key={u.id}>
-              <td><strong>{u.name}</strong>{u.id === selfId && <span className="muted"> (you)</span>}</td><td>{u.email}</td>
+              <td><strong>{u.name}</strong>{u.id === selfId && <span className="muted"> (you)</span>}</td><td>{u.email} <button className="linkbtn" onClick={() => setEditing({ id: u.id, name: u.name, email: u.email })} aria-label={`Edit ${u.name}`}>Edit</button></td>
               <td>{u.id === selfId ? roles.find((r) => r.id === u.roleId)?.name : <select aria-label={`Role for ${u.name}`} value={u.roleId} onChange={(e) => patch(u, { roleId: e.target.value })}>{roleOpts.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>}</td>
               <td>{!u.active ? <span className="badge">Inactive</span> : u.invited ? <span className="badge b-amber">Invited</span> : <span className="badge b-green">Active</span>}</td>
               <td>{u.lastLogin ? fmtDateTime(u.lastLogin) : 'Never'}</td>
@@ -74,6 +75,19 @@ export function PortalUsersPanel({ contactId, contactName, initial, roles, endpo
       <div className="addrow"><button className="btn primary" onClick={invite}>Create invitation</button></div>
       <p className="hint">Invited people set their own password from the link. Deactivating someone signs them out at once.</p>
       {link && <LinkBox url={link.url} name={link.name} onClose={() => setLink(null)} />}
+      {editing && (
+        <Modal title="Edit person" onClose={() => setEditing(null)}>
+          <div className="grid">
+            <TextField id="pe-name" label="Name" value={editing.name} onChange={(v) => setEditing({ ...editing, name: v })} />
+            <TextField id="pe-email" label="Email, used to sign in" type="email" value={editing.email} onChange={(v) => setEditing({ ...editing, email: v })} />
+          </div>
+          <p className="hint">They keep their password. If you change the email, they sign in with the new one from now on.</p>
+          <div className="dlg-actions">
+            <button className="btn" onClick={() => setEditing(null)}>Cancel</button>
+            <button className="btn primary" onClick={async () => { const u = users.find((x) => x.id === editing.id); if (u) { await patch(u, { name: editing.name, email: editing.email }); } setEditing(null); }}>Save</button>
+          </div>
+        </Modal>
+      )}
     </section>
   );
 }
@@ -100,14 +114,17 @@ export function RolesPanel({ initial, canEdit }: { initial: PortalRole[]; canEdi
   return (
     <div className="tplwrap">
       <section className="sheet">
-        <div className="cp" style={{ marginBottom: 10 }}><h2 style={{ margin: 0 }}>Customer roles</h2>
+        <div className="cp" style={{ marginBottom: 10 }}><h2 style={{ margin: 0 }}>Roles</h2>
           {canEdit && <div className="cp-actions"><button className="btn primary" onClick={() => setDraft({ name: 'New role', desc: '', perms: { ...initial.find((r) => r.id === 'viewer')!.perms } })}>New role</button></div>}</div>
         <div className="table-wrap"><table><thead><tr><th>Role</th><th>What it’s for</th></tr></thead><tbody>
-          {roles.map((r) => (
-            <tr key={r.id} className={`outrow ${sel === r.id ? 'on' : ''}`} onClick={() => setSel(r.id)}>
-              <td><strong>{r.name}</strong> <span className={`badge ${r.builtin ? '' : 'b-accent'}`}>{r.builtin ? 'Built-in' : 'Custom'}</span></td><td>{r.desc}</td>
-            </tr>
-          ))}
+          {(['customer', 'supplier'] as const).map((side) => [
+            <tr key={side} className="grp"><td colSpan={2}>{side === 'customer' ? 'Customer accounts' : 'Suppliers'}</td></tr>,
+            ...roles.filter((r) => r.side === side).map((r) => (
+              <tr key={r.id} className={`outrow ${sel === r.id ? 'on' : ''}`} onClick={() => setSel(r.id)}>
+                <td><strong>{r.name}</strong> <span className={`badge ${r.builtin ? '' : 'b-accent'}`}>{r.builtin ? 'Built-in' : 'Custom'}</span></td><td>{r.desc}</td>
+              </tr>
+            )),
+          ])}
         </tbody></table></div>
       </section>
       <div>
@@ -115,12 +132,12 @@ export function RolesPanel({ initial, canEdit }: { initial: PortalRole[]; canEdi
           <section className="sheet">
             <div className="cp" style={{ marginBottom: 10 }}><h2 style={{ margin: 0 }}>{cur.name}</h2>
               {canEdit && <div className="cp-actions">
-                <button className="btn" onClick={() => setDraft({ name: `${cur.name} (copy)`, desc: cur.desc, perms: { ...cur.perms } })}>Duplicate</button>
+                {cur.side === 'customer' && <button className="btn" onClick={() => setDraft({ name: `${cur.name} (copy)`, desc: cur.desc, perms: { ...cur.perms } })}>Duplicate</button>}
                 {!cur.builtin && <button className="btn" onClick={() => setDraft({ id: cur.id, name: cur.name, desc: cur.desc, perms: { ...cur.perms } })}>Edit</button>}
                 {!cur.builtin && <button className="btn ghost" onClick={() => remove(cur)}>Delete</button>}
               </div>}</div>
-            <ul className="rnotes">{roleSummary(cur.perms).map((x) => <li key={x}>{x}</li>)}</ul>
-            {cur.builtin && <p className="hint">Built-in roles can’t be changed. Duplicate one to make your own version.</p>}
+            <ul className="rnotes">{roleSummary(cur.perms, cur.side).map((x) => <li key={x}>{x}</li>)}</ul>
+            {cur.builtin && <p className="hint">{cur.side === 'supplier' ? 'Supplier roles are fixed for now.' : 'Built-in roles can’t be changed. Duplicate one to make your own version.'}</p>}
           </section>
         ) : <p className="hint" style={{ marginTop: 0 }}>Select a role to see what it allows. Custom roles let you mix access, for example a booker who can’t see prices.</p>}
       </div>

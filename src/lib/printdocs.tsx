@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { ObjectId } from 'mongodb';
 import { getBooking } from './bookings';
-import { getFinance, getInvoice, getPurchase, listInvoices } from './finance';
+import { getFinance, getInvoice, getPurchase, listInvoices, listPurchases } from './finance';
 import { getCompany, getContact } from './queries';
 import {
   AGE, PAY_METHODS, SERVICE_TYPES, type DocKind, ageBucket, docTotals, fmtDate, fmtRange, label, money, nights, r2, sell, totals, travList, travelDates,
@@ -12,7 +12,7 @@ import type { Contact } from './types';
 /** Every printable document, used by the staff print pages and by public share links. */
 export type { DocKind };
 export const DOC_KIND_NAMES: Record<DocKind, string> = {
-  confirm: 'booking confirmation', vouchers: 'hotel vouchers', invoice: 'invoice', receipt: 'payment receipt', po: 'purchase order', voucher: 'payment voucher', statement: 'statement of account',
+  confirm: 'booking confirmation', vouchers: 'hotel vouchers', invoice: 'invoice', receipt: 'payment receipt', po: 'purchase order', voucher: 'payment voucher', statement: 'statement of account', supstatement: 'supplier statement',
 };
 export type LoadedDoc = {
   title: string; number: string; party: Contact | null; model: 'booking' | 'invoice' | 'purchase' | 'contact'; recordId: string;
@@ -22,6 +22,35 @@ export type LoadedDoc = {
 export async function loadDoc(kind: DocKind, id: string, pid?: string, opts: { prices?: boolean } = {}): Promise<LoadedDoc | null> {
   if (!ObjectId.isValid(id)) return null;
   const company = await getCompany();
+
+  if (kind === 'supstatement') {
+    const contact = await getContact(id);
+    if (!contact) return null;
+    const pos = (await listPurchases({})).filter((p) => p.supplierId === id && (p.status === 'billed' || p.status === 'paid'));
+    type Row = { date: string; ref: string; text: string; billed: number; paid: number };
+    const rows: Row[] = [];
+    for (const p of pos) {
+      rows.push({ date: p.billDate || p.orderDate, ref: p.billRef || p.ref, text: `Bill for ${p.ref}${p.bookingRef ? `, booking ${p.bookingRef}` : ''}`, billed: docTotals(p.lines).total, paid: 0 });
+      for (const x of p.payments) rows.push({ date: x.date, ref: x.ref, text: `Payment for ${p.ref}`, billed: 0, paid: x.amount });
+    }
+    rows.sort((a, b) => a.date.localeCompare(b.date) || a.ref.localeCompare(b.ref));
+    let run = 0;
+    const number = `As of ${fmtDate(new Date().toISOString().slice(0, 10))}`;
+    return {
+      title: 'Supplier statement', number, party: contact, model: 'contact', recordId: id, back: `/contacts/${id}`, backLabel: 'Back to the contact',
+      node: (
+        <article className="paper">
+          <PaperHead company={company} title="Supplier statement" number={number} party={contact} partyLabel="Supplier" showTax meta={[['Currency', 'USD']]} />
+          <table>
+            <thead><tr><th>Date</th><th>Reference</th><th>Description</th><th className="r">Billed</th><th className="r">Paid</th><th className="r">Still owed</th></tr></thead>
+            <tbody>{rows.length ? rows.map((x, i) => { run = r2(run + x.billed - x.paid); return <tr key={i}><td>{fmtDate(x.date)}</td><td>{x.ref}</td><td>{x.text}</td><td className="r">{x.billed ? money(x.billed) : ''}</td><td className="r">{x.paid ? money(x.paid) : ''}</td><td className="r">{money(run)}</td></tr>; }) : <tr><td colSpan={6}>No bills recorded yet.</td></tr>}</tbody>
+          </table>
+          <div className="tot"><div className="g"><span>Still owed to you</span><span>{money(run)}</span></div></div>
+          <PaperFoot company={company} note="Bills appear here once we have recorded them. Please contact us if anything is missing." />
+        </article>
+      ),
+    };
+  }
 
   if (kind === 'statement') {
     const contact = await getContact(id);

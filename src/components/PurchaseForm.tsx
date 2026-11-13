@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { api } from '@/lib/client';
-import { PO_STATES, docTotals, fmtDate, todayISO, type Finance } from '@/lib/constants';
+import { PO_STATES, docTotals, fmtDate, money, todayISO, type Finance } from '@/lib/constants';
 import type { Option, Purchase } from '@/lib/types';
 import { TextField, TextArea, SelectField, ReadOnly } from './Fields';
 import { TaxLines } from './TaxLines';
@@ -11,6 +11,7 @@ import { PaymentBox } from './PaymentBox';
 import { ActivityPanel } from './ActivityPanel';
 import { DocumentsPanel, uploadDoc } from './DocumentsPanel';
 import { Modal } from './Modal';
+import { Thread } from './RequestParts';
 import { useToast } from './Toast';
 
 type Draft = Pick<Purchase, 'supplierId' | 'orderDate' | 'billRef' | 'billDate' | 'lines' | 'notes'>;
@@ -106,7 +107,24 @@ export function PurchaseForm({ initial, finance, suppliers }: { initial?: Purcha
             <h2>Purchased services</h2>
             <TaxLines lines={f.lines} onChange={(lines) => setF({ ...f, lines })} editable={editable} amountLabel="Cost excl. VAT" vatFor={() => 0} payments={po?.payments ?? []} />
           </section>
-          {po && <DocumentsPanel key={docKey} model="purchase" id={po.id} docs={po.docs} defaultKind="bill" title="Supplier documents"
+          {po && (po.supplierAck || po.supplierBill || po.thread.length > 0 || status === 'confirmed') && (
+            <section className="sheet">
+              <h2>Supplier portal</h2>
+              <p style={{ margin: '0 0 8px' }}>{po.supplierAck
+                ? <><span className="badge b-green">Confirmed by the supplier</span> {po.supplierAck.by}, {fmtDate(po.supplierAck.at.slice(0, 10))}{po.supplierAck.ref && <>, their reference <b>{po.supplierAck.ref}</b></>}</>
+                : <span className="badge b-amber">Not confirmed by the supplier yet</span>}</p>
+              {po.supplierBill && (
+                <p className="banner" style={{ margin: '8px 0' }}>
+                  The supplier uploaded bill <b>{po.supplierBill.ref}</b> of {fmtDate(po.supplierBill.date)} for <b>{money(po.supplierBill.amount)}</b>{Math.abs(po.supplierBill.amount - t.total) > 0.009 ? `, which differs from the order total of ${money(t.total)}` : ''}. It’s under Supplier documents.
+                  {status === 'confirmed' && <> <button className="btn" onClick={() => setBill({ billRef: po.supplierBill!.ref, billDate: po.supplierBill!.date })}>Record this bill</button></>}
+                </p>
+              )}
+              <p className="hint" style={{ margin: 0 }}>Suppliers with portal access see confirmed orders, can confirm them, write to you and upload their bill.</p>
+            </section>
+          )}
+          {po && <Thread messages={po.thread} mine="staff" canWrite={status !== 'draft'} placeholder="Write to the supplier"
+            onSend={async (text) => { try { apply(await api<Purchase>(`/api/purchases/${po.id}/messages`, 'POST', { text })); } catch (e) { toast((e as Error).message, 'err'); throw e; } }} />}
+          {po && <DocumentsPanel key={docKey} model="purchase" id={po.id} docs={po.docs} defaultKind="bill" title="Supplier documents" showPortal
             emptyText="No documents yet. Attach the supplier’s bill, quote or confirmation here." onChange={() => setTick((x) => x + 1)} />}
           {po && (status === 'billed' || status === 'paid') && (
             <PaymentBox title="Payments to supplier" payments={po.payments} accounts={finance.accounts} balance={t.balance} canPay={status === 'billed'}

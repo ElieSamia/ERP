@@ -7,7 +7,7 @@ import { HttpError, oid } from './api';
 import { PORTAL_COOKIE, SESSION_HOURS, signPortal } from './session-token';
 import {
   BUILTIN_ROLES, DEFAULT_PORTAL, REQ_TO_STAGE, TRAVEL_DOC_KINDS, label, LEAD_STAGES, todayISO, travList,
-  type Perms, type PortalRole, type PortalSettings, type RequestStatus,
+  type Perms, type PortalRole, type PortalSettings, type PortalSide, type RequestStatus,
 } from './constants';
 import { publicDocs } from './attachments';
 import { logActivity } from './activity';
@@ -17,7 +17,7 @@ import type { Booking, BookingDoc, PortalAccountUser, Request } from './types';
 /* ---------- Roles and settings ---------- */
 export async function getRoles(): Promise<PortalRole[]> {
   const custom = await (await db()).collection('portalRoles').find({}).sort({ name: 1 }).toArray();
-  return [...BUILTIN_ROLES, ...custom.map((r) => ({ id: String(r._id), name: String(r.name), desc: String(r.desc || ''), builtin: false, perms: r.perms as Perms }))];
+  return [...BUILTIN_ROLES, ...custom.map((r) => ({ id: String(r._id), name: String(r.name), desc: String(r.desc || ''), builtin: false, side: 'customer' as const, perms: r.perms as Perms }))];
 }
 export async function getPortalSettings(): Promise<PortalSettings> {
   const d = await (await db()).collection<{ _id: string } & Partial<PortalSettings>>('settings').findOne({ _id: 'portal' });
@@ -53,7 +53,7 @@ export async function createPortalSession(u: { id: string; name: string; email: 
 }
 export async function destroyPortalSession() { (await cookies()).delete(PORTAL_COOKIE); }
 
-export type PortalCtx = { userId: string; name: string; email: string; contactId: string; contactName: string; contactType: string; role: PortalRole; perms: Perms };
+export type PortalCtx = { userId: string; name: string; email: string; contactId: string; contactName: string; contactType: string; side: PortalSide; role: PortalRole; perms: Perms };
 
 /**
  * Who is signed in to the portal, re-read from the database on every request, so deactivating a user, changing
@@ -69,8 +69,11 @@ export async function getPortalCtx(): Promise<PortalCtx | null> {
   const c = await d.collection('contacts').findOne({ _id: oid(String(u.contactId)) });
   if (!c || c.portalAccess !== 'yes') return null;
   const roles = await getRoles();
-  const role = roles.find((r) => r.id === u.roleId) ?? BUILTIN_ROLES.find((r) => r.id === 'viewer')!;
-  return { userId: String(u._id), name: String(u.name), email: String(u.email), contactId: String(c._id), contactName: String(c.name), contactType: String(c.type), role, perms: role.perms };
+  const side: PortalSide = c.type === 'supplier' ? 'supplier' : 'customer';
+  // A role from the other side never applies: a supplier can't hold a customer role, or the reverse.
+  const found = roles.find((r) => r.id === u.roleId && r.side === side);
+  const role = found ?? BUILTIN_ROLES.find((r) => r.id === (side === 'supplier' ? 's_res' : 'viewer'))!;
+  return { userId: String(u._id), name: String(u.name), email: String(u.email), contactId: String(c._id), contactName: String(c.name), contactType: String(c.type), side, role, perms: role.perms };
 }
 export async function requirePortal(check?: (p: Perms) => boolean): Promise<PortalCtx> {
   const ctx = await getPortalCtx();
@@ -263,8 +266,9 @@ export const inviteSchema = z.object({
 export async function inviteUser(contactId: string, data: z.infer<typeof inviteSchema>, origin: string, by: string) {
   const d = await db();
   const c = await d.collection('contacts').findOne({ _id: oid(contactId) });
-  if (!c || c.type === 'supplier') throw new HttpError(400, 'Portal users for suppliers come in the next part. Choose a customer account.');
-  if (!(await getRoles()).some((r) => r.id === data.roleId)) throw new HttpError(400, 'Choose a role.');
+  if (!c) throw new HttpError(404, 'Account not found.');
+  const side = c.type === 'supplier' ? 'supplier' : 'customer';
+  if (!(await getRoles()).some((r) => r.id === data.roleId && r.side === side)) throw new HttpError(400, side === 'supplier' ? 'Choose a supplier role.' : 'Choose a customer role.');
   if (await d.collection('portalUsers').findOne({ email: data.email })) throw new HttpError(409, 'A portal user with this email already exists.');
   const inv = newInvite();
   await d.collection('portalUsers').insertOne({ ...data, contactId, active: true, passwordHash: null, inviteHash: inv.hash, inviteExpires: inv.expires, createdAt: new Date(), createdBy: by });
@@ -272,3 +276,51 @@ export async function inviteUser(contactId: string, data: z.infer<typeof inviteS
   return { users: await listPortalUsers(contactId), inviteUrl: `${origin}/portal/invite/${inv.token}` };
 }
 
+
+export const userEditSchema = z.object({
+  name: z.string().trim().min(1, 'Enter the person’s name.').max(100).optional(),
+  email: z.string().trim().toLowerCase().email('Enter a valid email address.').optional(),
+  roleId: z.string().optional(),
+  active: z.boolean().optional(),
+  reset: z.boolean().optional(),
+});
+
+/**
+ * Changes a portal user's name, email, role or status. Used by your staff and by the account's own admin.
+ * The person keeps their password; a new email simply becomes their sign-in.
+ */
+export async function editPortalUser(u: WithId<Document>, data: z.infer<typeof userEditSchema>, by: string) {
+  const d = await db();
+  const col = d.collection('portalUsers');
+  const c = await d.collection('contacts').findOne({ _id: oid(String(u.contactId)) }, { projection: { type: 1 } });
+  const side = c?.type === 'supplier' ? 'supplier' : 'customer';
+  if (data.roleId && !(await getRoles()).some((r) => r.id === data.roleId && r.side === side)) throw new HttpError(400, 'Choose a role.');
+  if (data.email && data.email !== u.email && (await col.findOne({ email: data.email, _id: { $ne: u._id } })))
+    throw new HttpError(409, 'Another portal user already uses this email.');
+  const set: Record<string, unknown> = {};
+  for (const k of ['name', 'email', 'roleId', 'active'] as const) if (data[k] !== undefined && data[k] !== u[k]) set[k] = data[k];
+  const notes: string[] = [];
+  if (set.name) notes.push(`renamed to ${set.name}`);
+  if (set.email) notes.push(`sign-in email changed to ${set.email}`);
+  if (set.roleId) notes.push('role changed');
+  if (set.active === false) notes.push('deactivated');
+  if (set.active === true) notes.push('activated');
+  if (Object.keys(set).length) await col.updateOne({ _id: u._id }, { $set: set });
+  if (notes.length) await logActivity('contact', String(u.contactId), by, `Portal user ${u.name}: ${notes.join(', ')}.`);
+}
+
+/* ---------- Supplier side ---------- */
+/** Orders a supplier sees: everything you have confirmed to them. Requests for quotation and orders cancelled before confirming stay internal. */
+export async function supplierOrders(ctx: PortalCtx) {
+  if (ctx.side !== 'supplier' || !ctx.perms.orders || ctx.perms.orders === 'none') return [];
+  const { listPurchases } = await import('./finance');
+  return (await listPurchases({})).filter((p) => p.supplierId === ctx.contactId && (['confirmed', 'billed', 'paid'].includes(p.status) || (p.status === 'cancelled' && !!p.supplierAck)));
+}
+export async function supplierOrder(ctx: PortalCtx, id: string) {
+  return (await supplierOrders(ctx)).find((p) => p.id === id) ?? null;
+}
+/** Supplier-visible files on an order: anything shown, never internal ones. */
+export const supplierDocs = (docs: BookingDoc[]) => docs.filter((d) => d.shared !== 'no');
+export async function addOrderMessage(id: string, side: 'customer' | 'staff' | 'system', by: string, text: string) {
+  await (await db()).collection('purchases').updateOne({ _id: oid(id) }, { $push: { thread: { at: new Date(), by, side, text } } } as never);
+}

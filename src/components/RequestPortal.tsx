@@ -81,7 +81,7 @@ export function RequestPortal({ initial, perms, response, uploads }: { initial: 
               ? <div className="dlg-actions" style={{ justifyContent: 'flex-start' }}><button className="btn primary" onClick={() => act('approve', '', 'Quote approved.')}>Approve</button><button className="btn" onClick={() => act('reject', '', 'Not approved.')}>Don’t approve</button></div>
               : <p className="hint">Waiting for approval by an approver on your account.</p>)}
           </QuoteBox>
-          <Thread r={r} mine="customer" canWrite={canWrite && open} placeholder="Write to our team" onSend={(t) => act('message', t, 'Message sent.')} />
+          <Thread messages={r.messages} mine="customer" canWrite={canWrite && open} placeholder="Write to our team" onSend={(t) => act('message', t, 'Message sent.')} />
           {(perms.documents !== 'none' || r.docs.length > 0) && (
             <section className="sheet">
               <h2>Documents</h2>

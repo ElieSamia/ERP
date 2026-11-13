@@ -93,7 +93,7 @@ export function travelDates(b: Datable) {
 }
 
 /* ---------- Printable documents and share links ---------- */
-export type DocKind = 'confirm' | 'vouchers' | 'invoice' | 'receipt' | 'po' | 'voucher' | 'statement';
+export type DocKind = 'confirm' | 'vouchers' | 'invoice' | 'receipt' | 'po' | 'voucher' | 'statement' | 'supstatement';
 export const SHARE_DAYS = 30;
 
 /* ---------- Invoicing, purchasing and expenses (phase 3) ---------- */
@@ -125,7 +125,8 @@ export type Finance = {
 export const DEFAULT_FINANCE: Finance = {
   terms: { customer: 14, agency: 14, corporate: 30 },
   supplierTerms: 30,
-  vat: { flight: 0, hotel: 11, transfer: 11, visa: 11, package: 11, insurance: 11, other: 11 },
+  // Every service starts at 0% VAT; 11% stays available on each line.
+  vat: { flight: 0, hotel: 0, transfer: 0, visa: 0, package: 0, insurance: 0, other: 0 },
   accounts: [{ id: 'BNK', name: 'Bank, USD account', type: 'bank' }, { id: 'CSH', name: 'Cash on hand', type: 'cash' }],
   categories: [
     { id: 'water', name: 'Water' }, { id: 'electricity', name: 'Electricity and generator' }, { id: 'fuel', name: 'Fuel' },
@@ -212,8 +213,11 @@ export const TRAVEL_DOC_KINDS = ['ticket', 'voucher', 'tvoucher', 'avoucher', 'e
 export type Perms = {
   requests: 'none' | 'view' | 'create'; scope: 'account' | 'own'; acceptQuotes: 'yes' | 'no'; approvalLimit: number; approveQuotes: 'yes' | 'no';
   bookings: 'none' | 'travelling' | 'view'; prices: 'yes' | 'no'; documents: 'none' | 'view' | 'upload'; invoices: 'yes' | 'no'; statement: 'yes' | 'no'; manageUsers: 'yes' | 'no';
+  /** Supplier side only: purchase orders, bill uploads and payment vouchers. Missing means no access. */
+  orders?: 'none' | 'view' | 'respond'; bills?: 'none' | 'upload'; payments?: 'yes' | 'no';
 };
-export type PortalRole = { id: string; name: string; desc: string; builtin: boolean; perms: Perms };
+export type PortalSide = 'customer' | 'supplier';
+export type PortalRole = { id: string; name: string; desc: string; builtin: boolean; side: PortalSide; perms: Perms };
 const YN = [['yes', 'Yes'], ['no', 'No']] as const;
 export const PERM_DEFS: [keyof Perms, string, readonly (readonly [string, string])[] | 'number'][] = [
   ['requests', 'Requests', [['none', 'No access'], ['view', 'View only'], ['create', 'Create and follow up']]],
@@ -229,19 +233,34 @@ export const PERM_DEFS: [keyof Perms, string, readonly (readonly [string, string
   ['manageUsers', 'Manage their colleagues', YN],
 ];
 export const BUILTIN_ROLES: PortalRole[] = [
-  { id: 'admin', name: 'Account admin', builtin: true, desc: 'Owner or manager. Sees and does everything for the account, approves quotes and manages colleagues.',
+  { id: 'admin', name: 'Account admin', builtin: true, side: 'customer', desc: 'Owner or manager. Sees and does everything for the account, approves quotes and manages colleagues.',
     perms: { requests: 'create', scope: 'account', acceptQuotes: 'yes', approvalLimit: 0, approveQuotes: 'yes', bookings: 'view', prices: 'yes', documents: 'upload', invoices: 'yes', statement: 'yes', manageUsers: 'yes' } },
-  { id: 'booker', name: 'Booker', builtin: true, desc: 'Sales staff. Sends requests and follows them up. Quotes above $2,000 need approval.',
+  { id: 'booker', name: 'Booker', builtin: true, side: 'customer', desc: 'Sales staff. Sends requests and follows them up. Quotes above $2,000 need approval.',
     perms: { requests: 'create', scope: 'account', acceptQuotes: 'yes', approvalLimit: 2000, approveQuotes: 'no', bookings: 'view', prices: 'yes', documents: 'upload', invoices: 'no', statement: 'no', manageUsers: 'no' } },
-  { id: 'finance', name: 'Finance', builtin: true, desc: 'Accountant. Invoices, receipts and the statement only.',
+  { id: 'finance', name: 'Finance', builtin: true, side: 'customer', desc: 'Accountant. Invoices, receipts and the statement only.',
     perms: { requests: 'none', scope: 'account', acceptQuotes: 'no', approvalLimit: 0, approveQuotes: 'no', bookings: 'none', prices: 'yes', documents: 'none', invoices: 'yes', statement: 'yes', manageUsers: 'no' } },
-  { id: 'viewer', name: 'Viewer', builtin: true, desc: 'Operations staff or coordinators. Follows requests and bookings and downloads documents, without prices.',
+  { id: 'viewer', name: 'Viewer', builtin: true, side: 'customer', desc: 'Operations staff or coordinators. Follows requests and bookings and downloads documents, without prices.',
     perms: { requests: 'view', scope: 'account', acceptQuotes: 'no', approvalLimit: 0, approveQuotes: 'no', bookings: 'view', prices: 'no', documents: 'view', invoices: 'no', statement: 'no', manageUsers: 'no' } },
-  { id: 'traveller', name: 'Traveller', builtin: true, desc: 'An employee of a corporate client. Only their own trips and travel documents.',
+  { id: 'traveller', name: 'Traveller', builtin: true, side: 'customer', desc: 'An employee of a corporate client. Only their own trips and travel documents.',
     perms: { requests: 'none', scope: 'own', acceptQuotes: 'no', approvalLimit: 0, approveQuotes: 'no', bookings: 'travelling', prices: 'no', documents: 'view', invoices: 'no', statement: 'no', manageUsers: 'no' } },
+  { id: 's_admin', name: 'Supplier admin', builtin: true, side: 'supplier', desc: 'Owner or manager at the supplier. Orders, bills, payments, statement and colleagues.',
+    perms: { requests: 'none', scope: 'account', acceptQuotes: 'no', approvalLimit: 0, approveQuotes: 'no', bookings: 'none', prices: 'yes', documents: 'none', invoices: 'no', statement: 'yes', manageUsers: 'yes', orders: 'respond', bills: 'upload', payments: 'yes' } },
+  { id: 's_res', name: 'Reservations', builtin: true, side: 'supplier', desc: 'Reservations staff. Sees and confirms purchase orders, no money.',
+    perms: { requests: 'none', scope: 'account', acceptQuotes: 'no', approvalLimit: 0, approveQuotes: 'no', bookings: 'none', prices: 'yes', documents: 'none', invoices: 'no', statement: 'no', manageUsers: 'no', orders: 'respond', bills: 'none', payments: 'no' } },
+  { id: 's_acc', name: 'Accounts', builtin: true, side: 'supplier', desc: 'Accountant at the supplier. Uploads bills, sees payments and the statement.',
+    perms: { requests: 'none', scope: 'account', acceptQuotes: 'no', approvalLimit: 0, approveQuotes: 'no', bookings: 'none', prices: 'yes', documents: 'none', invoices: 'no', statement: 'yes', manageUsers: 'no', orders: 'view', bills: 'upload', payments: 'yes' } },
 ];
-export function roleSummary(p: Perms): string[] {
+export function roleSummary(p: Perms, side: PortalSide = 'customer'): string[] {
   const n: string[] = [];
+  if (side === 'supplier') {
+    if (p.orders === 'respond') n.push('Sees your purchase orders, acknowledges them and replies to your team.');
+    else if (p.orders === 'view') n.push('Sees your purchase orders without replying.');
+    if (p.bills === 'upload') n.push('Uploads their bills on the orders.');
+    if (p.payments === 'yes') n.push('Sees your payment vouchers.');
+    if (p.statement === 'yes') n.push('Sees their statement: bills, payments and what is still owed.');
+    if (p.manageUsers === 'yes') n.push('Invites and manages colleagues.');
+    return n;
+  }
   if (p.requests !== 'none') n.push(p.requests === 'create' ? 'Sends requests and messages your team.' : 'Follows requests without changing them.');
   if (p.acceptQuotes === 'yes') n.push(p.approveQuotes === 'yes' ? 'Accepts any quote and approves colleagues’ quotes.' : +p.approvalLimit > 0 ? `Accepts quotes up to ${money(p.approvalLimit)}; above that an approver must approve.` : 'Accepts quotes of any amount.');
   if (p.scope === 'own' && p.requests !== 'none') n.push('Sees only requests they created and the bookings from them.');
@@ -260,3 +279,9 @@ export const DEFAULT_PORTAL: PortalSettings = {
   payInstructions: 'Pay by bank transfer to our USD account. Use the invoice number as the payment reference.',
   uploads: 'yes', autoBook: 'yes', quoteDays: 7, response: 'within one working day',
 };
+
+/** How a purchase order looks to the supplier in the portal. */
+export const ORDER_LABEL = (p: { status: string; supplierAck?: unknown; supplierBill?: unknown }): [string, string] =>
+  p.status === 'cancelled' ? ['Cancelled', 'b-red'] : p.status === 'paid' ? ['Paid', 'b-green'] : p.status === 'billed' ? ['Billed', 'b-accent']
+    : p.supplierBill ? ['Bill sent', 'b-accent'] : p.supplierAck ? ['Confirmed', 'b-green'] : ['Waiting for your confirmation', 'b-amber'];
+

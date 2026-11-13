@@ -24,6 +24,11 @@ const storeOpts = () => { const storeId = blobStoreId(); return storeId ? { stor
 const storageReady = () => !!(process.env.BLOB_READ_WRITE_TOKEN || blobStoreId());
 type StoredDoc = BookingDoc & { pathname?: string };
 
+/** Reads an upload, answering with a clear message instead of a server error when the request isn't a file upload. */
+export async function readForm(req: Request) {
+  try { return await req.formData(); } catch { throw new HttpError(400, 'Send the file as an upload.'); }
+}
+
 export function attachModel(m: string): AttachModel {
   if (!(m in ATTACH_MODELS)) throw new HttpError(404, 'Not found.');
   return m as AttachModel;

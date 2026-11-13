@@ -49,7 +49,7 @@ export function QuoteBox({ r, hidePrice, children }: { r: Request; hidePrice?: b
 }
 
 /** The conversation between the customer and your team. "mine" is the side the viewer is on. */
-export function Thread({ r, mine, canWrite, onSend, placeholder }: { r: Request; mine: 'customer' | 'staff'; canWrite: boolean; onSend: (t: string) => Promise<void>; placeholder: string }) {
+export function Thread({ messages, mine, canWrite, onSend, placeholder }: { messages: Request['messages']; mine: 'customer' | 'staff'; canWrite: boolean; onSend: (t: string) => Promise<void>; placeholder: string }) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   async function send() {
@@ -60,9 +60,9 @@ export function Thread({ r, mine, canWrite, onSend, placeholder }: { r: Request;
   return (
     <section className="sheet">
       <h2>Messages</h2>
-      {r.messages.length ? (
+      {messages.length ? (
         <ol className="thread">
-          {r.messages.map((m, i) => m.side === 'system'
+          {messages.map((m, i) => m.side === 'system'
             ? <li key={i} className="msg sys"><p>{m.text} <time>{fmtDateTime(m.at)}</time></p></li>
             : <li key={i} className={`msg ${m.side === mine ? 'mine' : ''}`}><div className="who">{m.by}<time>{fmtDateTime(m.at)}</time></div><p className="pre">{m.text}</p></li>)}
         </ol>

@@ -109,7 +109,7 @@ export function DocumentsPanel({ model, id, docs: initial, travellers, defaultKi
         <input ref={input} id={`doc-file-${model}`} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="filein" />
         <button className="btn primary" onClick={attach} disabled={busy}>{busy ? 'Uploading…' : 'Attach'}</button>
       </div>
-      <p className="hint">Images or PDFs up to 4 MB; large photos are shrunk automatically. Files are stored privately and open only for signed-in users.{showPortal ? ' Untick Shown to keep a file out of the customer portal when it arrives.' : ''}</p>
+      <p className="hint">Images or PDFs up to 4 MB; large photos are shrunk automatically. Files are stored privately and open only for signed-in users.{showPortal ? ' Untick Shown to keep a file out of the portal.' : ''}</p>
     </section>
   );
 }

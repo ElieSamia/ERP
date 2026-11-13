@@ -42,7 +42,7 @@ export function RequestStaff({ initial, quoteDays }: { initial: Request; quoteDa
         <div className="recmain">
           <RequestSummary r={r} showAccount />
           <QuoteBox r={r} />
-          <Thread r={r} mine="staff" canWrite={open} placeholder={`Write to ${r.contactName}`} onSend={async (text) => { await act({ action: 'message', text }, 'Message sent.'); }} />
+          <Thread messages={r.messages} mine="staff" canWrite={open} placeholder={`Write to ${r.contactName}`} onSend={async (text) => { await act({ action: 'message', text }, 'Message sent.'); }} />
           <DocumentsPanel model="request" id={r.id} docs={r.docs} defaultKind="passport" title="Documents from the customer" emptyText="The customer hasn’t attached anything." onChange={() => setTick((t) => t + 1)} />
         </div>
         <ActivityPanel model="request" id={r.id} refreshKey={tick} />
