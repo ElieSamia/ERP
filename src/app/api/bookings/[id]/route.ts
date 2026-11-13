@@ -1,9 +1,9 @@
-import { del } from '@vercel/blob';
 import { db } from '@/lib/db';
 import { handle, HttpError, oid, requireUser } from '@/lib/api';
 import { bookingSchema } from '@/lib/schemas';
 import { checkReferences, getBooking } from '@/lib/bookings';
 import { logActivity } from '@/lib/activity';
+import { removeAllFiles } from '@/lib/attachments';
 import { label, TRIP_TYPES } from '@/lib/constants';
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -55,8 +55,7 @@ export async function DELETE(_req: Request, { params }: Ctx) {
     const b = await d.collection('bookings').findOne({ _id: oid(id) });
     if (!b) throw new HttpError(404, 'Booking not found.');
     if (b.status !== 'draft') throw new HttpError(409, 'Only draft bookings can be deleted. Cancel it instead.');
-    const paths = ((b.docs as { pathname?: string }[]) || []).map((x) => x.pathname).filter((x): x is string => !!x);
-    if (paths.length) await del(paths).catch((e) => console.error('Could not delete files', e));
+    await removeAllFiles(b.docs);
     await d.collection('bookings').deleteOne({ _id: oid(id) });
     await d.collection('leads').updateMany({ bookingId: id }, { $unset: { bookingId: '' } });
     await d.collection('activity').deleteMany({ model: 'booking', recordId: id });

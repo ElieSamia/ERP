@@ -3,6 +3,7 @@ import { handle, HttpError, oid, requireUser } from '@/lib/api';
 import { expenseSchema } from '@/lib/schemas';
 import { checkExpense, getExpense } from '@/lib/finance';
 import { logActivity } from '@/lib/activity';
+import { removeAllFiles } from '@/lib/attachments';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -39,6 +40,7 @@ export async function DELETE(_req: Request, { params }: Ctx) {
     const e = await d.collection('expenses').findOne({ _id: oid(id) });
     if (!e) throw new HttpError(404, 'Expense not found.');
     if (e.status !== 'draft') throw new HttpError(409, 'Only draft expenses can be deleted.');
+    await removeAllFiles(e.docs);
     await d.collection('expenses').deleteOne({ _id: oid(id) });
     await d.collection('activity').deleteMany({ model: 'expense', recordId: id });
     return { ok: true };

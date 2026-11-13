@@ -3,6 +3,7 @@ import { handle, HttpError, oid, requireUser } from '@/lib/api';
 import { purchaseSchema } from '@/lib/schemas';
 import { getPurchase } from '@/lib/finance';
 import { logActivity } from '@/lib/activity';
+import { removeAllFiles } from '@/lib/attachments';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -43,6 +44,7 @@ export async function DELETE(_req: Request, { params }: Ctx) {
     if (!p) throw new HttpError(404, 'Purchase order not found.');
     if (p.status !== 'draft') throw new HttpError(409, 'Only requests for quotation can be deleted. Cancel the order instead.');
     if (p.bookingId) await d.collection('bookings').updateOne({ _id: oid(p.bookingId) }, { $unset: { 'lines.$[l].poId': '' } }, { arrayFilters: [{ 'l.poId': id }] });
+    await removeAllFiles(p.docs);
     await d.collection('purchases').deleteOne({ _id: oid(id) });
     await d.collection('activity').deleteMany({ model: 'purchase', recordId: id });
     return { ok: true };
