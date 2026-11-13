@@ -40,6 +40,11 @@ async function ensureIndexes(d: Db) {
     d.collection('shares').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     d.collection('moves').createIndex({ key: 1 }, { unique: true, partialFilterExpression: { key: { $type: 'string' } } }),
     d.collection('moves').createIndex({ status: 1, date: 1 }),
+    d.collection('portalUsers').createIndex({ email: 1 }, { unique: true }),
+    d.collection('portalUsers').createIndex({ contactId: 1 }),
+    d.collection('portalUsers').createIndex({ inviteHash: 1 }, { sparse: true }),
+    d.collection('requests').createIndex({ contactId: 1, createdAt: -1 }),
+    d.collection('requests').createIndex({ status: 1, createdAt: -1 }),
     d.collection('moves').createIndex({ 'lines.account': 1, date: 1 }),
   ]);
 }

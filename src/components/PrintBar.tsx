@@ -18,6 +18,7 @@ const TEMPLATES: Record<DocKind, { subject: string; body: string }> = {
   invoice: { subject: 'Invoice {number} from {company}', body: 'Dear {name},\n\nPlease find your invoice {number} here:\n{link}\n\nKind regards,\n{company}' },
   receipt: { subject: 'Payment receipt {number}', body: 'Dear {name},\n\nThank you for your payment. Your receipt {number} is here:\n{link}\n\nKind regards,\n{company}' },
   po: { subject: 'Purchase order {number} from {company}', body: 'Hello,\n\nPlease find our purchase order {number} here:\n{link}\n\nKindly confirm availability.\n\nRegards,\n{company}' },
+  statement: { subject: 'Statement of account from {company}', body: 'Dear {name},\n\nYour statement of account is here:\n{link}\n\nKind regards,\n{company}' },
   voucher: { subject: 'Payment {number} from {company}', body: 'Hello,\n\nPlease find the payment voucher {number} here:\n{link}\n\nRegards,\n{company}' },
 };
 const fill = (s: string, m: Record<string, string>) => s.replace(/\{(\w+)\}/g, (x, k) => m[k] ?? x);

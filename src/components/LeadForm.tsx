@@ -83,10 +83,11 @@ export function LeadForm({ initial }: { initial?: Lead }) {
       </div>
       <div className="recpage">
         <div className="recmain">
+          {initial?.requestId && <p className="banner">From the B2B portal. Moving this opportunity also updates the customer’s request: Qualified starts the review, Won creates the booking and Lost declines it. Send quotes from the <Link className="link" href={`/b2b/requests/${initial.requestId}`}>portal request</Link>.</p>}
           <section className="sheet">
             <div className="grid">
               <TextField id="f-title" label="Opportunity" wide value={l.title} onChange={(v) => set('title', v)} />
-              <CustomerPicker value={l.contactId} name={l.contactName || ''} onChange={(id, name) => setL({ ...l, contactId: id, contactName: name })} />
+              <CustomerPicker value={l.contactId} name={l.contactName || ''} onChange={(id, name) => setL({ ...l, contactId: id, contactName: name })} disabled={!!initial?.requestId} />
               {!initial && <SelectField id="f-stage" label="Stage" value={l.stage} options={LEAD_STAGES} onChange={(v) => set('stage', v as Draft['stage'])} />}
               <TextField id="f-dest" label="Destination" value={l.destination} onChange={(v) => set('destination', v)} />
               <TextField id="f-date" label="Travel date" type="date" value={l.travelDate} onChange={(v) => set('travelDate', v)} />

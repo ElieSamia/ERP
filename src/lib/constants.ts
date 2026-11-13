@@ -43,6 +43,11 @@ export type TripType = (typeof TRIP_TYPES)[number][0];
 export const BOOKING_STATES = [
   ['draft', 'Draft'], ['confirmed', 'Confirmed'], ['ticketed', 'Ticketed'], ['invoiced', 'Invoiced'], ['cancelled', 'Cancelled'],
 ] as const;
+/** What portal customers see for each booking status: drafts are still being prepared by our team. */
+export const PORTAL_STATUS: Record<string, [string, string]> = {
+  draft: ['Being prepared', 'b-amber'], confirmed: ['Confirmed', 'b-accent'], ticketed: ['Ticketed', 'b-green'],
+  invoiced: ['Invoiced', 'b-green'], cancelled: ['Cancelled', 'b-red'],
+};
 export type BookingStatus = (typeof BOOKING_STATES)[number][0];
 export const BOOK_BADGE: Record<string, string> = { draft: '', confirmed: 'b-accent', ticketed: 'b-amber', invoiced: 'b-green', cancelled: 'b-red' };
 
@@ -88,7 +93,7 @@ export function travelDates(b: Datable) {
 }
 
 /* ---------- Printable documents and share links ---------- */
-export type DocKind = 'confirm' | 'vouchers' | 'invoice' | 'receipt' | 'po' | 'voucher';
+export type DocKind = 'confirm' | 'vouchers' | 'invoice' | 'receipt' | 'po' | 'voucher' | 'statement';
 export const SHARE_DAYS = 30;
 
 /* ---------- Invoicing, purchasing and expenses (phase 3) ---------- */
@@ -191,3 +196,67 @@ export function periodRange(p: string): [string, string] {
   const ends = ['03-31', '06-30', '09-30', '12-31'];
   return [`${y}-${String((q - 1) * 3 + 1).padStart(2, '0')}-01`, `${y}-${ends[q - 1]}`];
 }
+
+/* ---------- Customer portal (phase 5) ---------- */
+export const REQ_STATES = [
+  ['submitted', 'Submitted'], ['review', 'In review'], ['quoted', 'Quote sent'], ['approval', 'Waiting for approval'],
+  ['accepted', 'Quote accepted'], ['booked', 'Booked'], ['declined', 'Declined'], ['cancelled', 'Cancelled'],
+] as const;
+export type RequestStatus = (typeof REQ_STATES)[number][0];
+export const REQ_BADGE: Record<string, string> = { submitted: 'b-amber', review: 'b-accent', quoted: 'b-amber', approval: 'b-amber', accepted: 'b-green', booked: 'b-green', declined: 'b-red', cancelled: 'b-red' };
+export const OPEN_REQ: RequestStatus[] = ['submitted', 'review', 'quoted', 'approval', 'accepted'];
+/** Where a portal request sits in the CRM pipeline. */
+export const REQ_TO_STAGE: Record<RequestStatus, LeadStage> = { submitted: 'new', review: 'qualified', quoted: 'quoted', approval: 'quoted', accepted: 'won', booked: 'won', declined: 'lost', cancelled: 'lost' };
+export const TRAVEL_DOC_KINDS = ['ticket', 'voucher', 'tvoucher', 'avoucher', 'evisa', 'visa', 'insurance', 'itinerary'];
+
+export type Perms = {
+  requests: 'none' | 'view' | 'create'; scope: 'account' | 'own'; acceptQuotes: 'yes' | 'no'; approvalLimit: number; approveQuotes: 'yes' | 'no';
+  bookings: 'none' | 'travelling' | 'view'; prices: 'yes' | 'no'; documents: 'none' | 'view' | 'upload'; invoices: 'yes' | 'no'; statement: 'yes' | 'no'; manageUsers: 'yes' | 'no';
+};
+export type PortalRole = { id: string; name: string; desc: string; builtin: boolean; perms: Perms };
+const YN = [['yes', 'Yes'], ['no', 'No']] as const;
+export const PERM_DEFS: [keyof Perms, string, readonly (readonly [string, string])[] | 'number'][] = [
+  ['requests', 'Requests', [['none', 'No access'], ['view', 'View only'], ['create', 'Create and follow up']]],
+  ['scope', 'Which requests and bookings', [['account', 'Everything for the account'], ['own', 'Only the ones they created']]],
+  ['acceptQuotes', 'Accept quotes', YN],
+  ['approvalLimit', 'Accept without approval up to (USD, 0 for no limit)', 'number'],
+  ['approveQuotes', 'Approve quotes above colleagues’ limits', YN],
+  ['bookings', 'Bookings', [['none', 'No access'], ['travelling', 'Only trips they travel on'], ['view', 'All bookings they can see']]],
+  ['prices', 'See prices', YN],
+  ['documents', 'Passports and other personal documents', [['none', 'No access'], ['view', 'View and download'], ['upload', 'View, download and upload']]],
+  ['invoices', 'Invoices and receipts', YN],
+  ['statement', 'Statement of account', YN],
+  ['manageUsers', 'Manage their colleagues', YN],
+];
+export const BUILTIN_ROLES: PortalRole[] = [
+  { id: 'admin', name: 'Account admin', builtin: true, desc: 'Owner or manager. Sees and does everything for the account, approves quotes and manages colleagues.',
+    perms: { requests: 'create', scope: 'account', acceptQuotes: 'yes', approvalLimit: 0, approveQuotes: 'yes', bookings: 'view', prices: 'yes', documents: 'upload', invoices: 'yes', statement: 'yes', manageUsers: 'yes' } },
+  { id: 'booker', name: 'Booker', builtin: true, desc: 'Sales staff. Sends requests and follows them up. Quotes above $2,000 need approval.',
+    perms: { requests: 'create', scope: 'account', acceptQuotes: 'yes', approvalLimit: 2000, approveQuotes: 'no', bookings: 'view', prices: 'yes', documents: 'upload', invoices: 'no', statement: 'no', manageUsers: 'no' } },
+  { id: 'finance', name: 'Finance', builtin: true, desc: 'Accountant. Invoices, receipts and the statement only.',
+    perms: { requests: 'none', scope: 'account', acceptQuotes: 'no', approvalLimit: 0, approveQuotes: 'no', bookings: 'none', prices: 'yes', documents: 'none', invoices: 'yes', statement: 'yes', manageUsers: 'no' } },
+  { id: 'viewer', name: 'Viewer', builtin: true, desc: 'Operations staff or coordinators. Follows requests and bookings and downloads documents, without prices.',
+    perms: { requests: 'view', scope: 'account', acceptQuotes: 'no', approvalLimit: 0, approveQuotes: 'no', bookings: 'view', prices: 'no', documents: 'view', invoices: 'no', statement: 'no', manageUsers: 'no' } },
+  { id: 'traveller', name: 'Traveller', builtin: true, desc: 'An employee of a corporate client. Only their own trips and travel documents.',
+    perms: { requests: 'none', scope: 'own', acceptQuotes: 'no', approvalLimit: 0, approveQuotes: 'no', bookings: 'travelling', prices: 'no', documents: 'view', invoices: 'no', statement: 'no', manageUsers: 'no' } },
+];
+export function roleSummary(p: Perms): string[] {
+  const n: string[] = [];
+  if (p.requests !== 'none') n.push(p.requests === 'create' ? 'Sends requests and messages your team.' : 'Follows requests without changing them.');
+  if (p.acceptQuotes === 'yes') n.push(p.approveQuotes === 'yes' ? 'Accepts any quote and approves colleagues’ quotes.' : +p.approvalLimit > 0 ? `Accepts quotes up to ${money(p.approvalLimit)}; above that an approver must approve.` : 'Accepts quotes of any amount.');
+  if (p.scope === 'own' && p.requests !== 'none') n.push('Sees only requests they created and the bookings from them.');
+  if (p.bookings === 'travelling') n.push('Sees only trips where they are a traveller.');
+  if (p.bookings !== 'none') n.push('Downloads the tickets, vouchers and e-visas on bookings they can see.');
+  if (p.documents === 'none' && p.bookings !== 'none') n.push('Can’t see passports or other personal documents.');
+  if (p.prices === 'no') n.push('Prices are hidden, and confirmations print without them.');
+  if (p.invoices === 'yes') n.push('Sees invoices and receipts.');
+  if (p.statement === 'yes') n.push('Sees the statement of account.');
+  if (p.manageUsers === 'yes') n.push('Invites and manages colleagues.');
+  return n;
+}
+export type PortalSettings = { welcome: string; payInstructions: string; uploads: 'yes' | 'no'; autoBook: 'yes' | 'no'; quoteDays: number; response: string };
+export const DEFAULT_PORTAL: PortalSettings = {
+  welcome: 'Send us your requests and follow them here, together with your bookings, invoices and statement.',
+  payInstructions: 'Pay by bank transfer to our USD account. Use the invoice number as the payment reference.',
+  uploads: 'yes', autoBook: 'yes', quoteDays: 7, response: 'within one working day',
+};

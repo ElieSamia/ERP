@@ -17,6 +17,7 @@ export type Contact = {
 
 export type Lead = {
   id: string;
+  requestId?: string;
   bookingId?: string;
   bookingRef?: string;
   title: string;
@@ -93,3 +94,14 @@ export type Expense = {
   id: string; ref: string; date: string; description: string; categoryId: string; amount: number; vat: number; paidFrom: string;
   supplierId: string; supplierName?: string; reference: string; status: ExpenseStatus; notes: string; docs: BookingDoc[]; createdAt?: string;
 };
+
+import type { RequestStatus } from './constants';
+
+export type ReqMessage = { at: string; by: string; side: 'customer' | 'staff' | 'system'; text: string };
+export type Request = {
+  id: string; ref: string; contactId: string; contactName?: string; createdById: string; createdBy: string; type: ServiceType; title: string;
+  destination: string; dateFrom: string; dateTo: string; adults: number; children: number; budget: number; travellers: string; details: string;
+  status: RequestStatus; quote: { amount: number; validUntil: string; notes: string; sentAt: string } | null; approvalBy?: string;
+  bookingId?: string; bookingRef?: string; leadId?: string; messages: ReqMessage[]; docs: BookingDoc[]; createdAt: string;
+};
+export type PortalAccountUser = { id: string; contactId: string; name: string; email: string; roleId: string; active: boolean; invited: boolean; lastLogin?: string };

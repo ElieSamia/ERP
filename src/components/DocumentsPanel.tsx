@@ -38,7 +38,7 @@ export async function uploadDoc(model: string, id: string, f: File, kind: string
 }
 
 export function DocumentsPanel({ model, id, docs: initial, travellers, defaultKind, showPortal, title = 'Documents', emptyText, onChange }: {
-  model: 'booking' | 'purchase' | 'expense'; id: string; docs: BookingDoc[]; travellers?: string[]; defaultKind: string; showPortal?: boolean;
+  model: 'booking' | 'purchase' | 'expense' | 'request'; id: string; docs: BookingDoc[]; travellers?: string[]; defaultKind: string; showPortal?: boolean;
   title?: string; emptyText: string; onChange?: (docs: BookingDoc[]) => void;
 }) {
   const [docs, setDocs] = useState(initial);

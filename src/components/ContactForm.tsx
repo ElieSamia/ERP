@@ -47,6 +47,8 @@ export function ContactForm({ initial }: { initial?: Contact }) {
           {dirty && <span className="dirty">Unsaved changes</span>}
           <button className="btn primary" onClick={save} disabled={busy || (!!initial && !dirty)}>{busy ? 'Saving…' : 'Save'}</button>
           {initial ? (dirty && <button className="btn" onClick={() => setC(saved)}>Discard</button>) : <Link className="btn" href="/contacts">Cancel</Link>}
+          {initial && saved.portalAccess === 'yes' && saved.type !== 'supplier' && <Link className="btn" href={`/b2b/accounts/${initial.id}`}>Portal users</Link>}
+          {initial && saved.type !== 'supplier' && <a className="btn" href={`/print/statement/${initial.id}`} target="_blank" rel="noopener">Statement</a>}
           {initial && <button className="btn ghost" onClick={remove}>Delete</button>}
         </div>
       </div>

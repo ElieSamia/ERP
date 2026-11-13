@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react';
 import { ObjectId } from 'mongodb';
 import { getBooking } from './bookings';
-import { getFinance, getInvoice, getPurchase } from './finance';
+import { getFinance, getInvoice, getPurchase, listInvoices } from './finance';
 import { getCompany, getContact } from './queries';
 import {
-  PAY_METHODS, SERVICE_TYPES, type DocKind, docTotals, fmtDate, fmtRange, label, money, nights, r2, sell, totals, travList, travelDates,
+  AGE, PAY_METHODS, SERVICE_TYPES, type DocKind, ageBucket, docTotals, fmtDate, fmtRange, label, money, nights, r2, sell, totals, travList, travelDates,
 } from './constants';
 import { PaperHead, PaperFoot } from './paper';
 import type { Contact } from './types';
@@ -12,16 +12,51 @@ import type { Contact } from './types';
 /** Every printable document, used by the staff print pages and by public share links. */
 export type { DocKind };
 export const DOC_KIND_NAMES: Record<DocKind, string> = {
-  confirm: 'booking confirmation', vouchers: 'hotel vouchers', invoice: 'invoice', receipt: 'payment receipt', po: 'purchase order', voucher: 'payment voucher',
+  confirm: 'booking confirmation', vouchers: 'hotel vouchers', invoice: 'invoice', receipt: 'payment receipt', po: 'purchase order', voucher: 'payment voucher', statement: 'statement of account',
 };
 export type LoadedDoc = {
-  title: string; number: string; party: Contact | null; model: 'booking' | 'invoice' | 'purchase'; recordId: string;
+  title: string; number: string; party: Contact | null; model: 'booking' | 'invoice' | 'purchase' | 'contact'; recordId: string;
   back: string; backLabel: string; node: ReactNode;
 };
 
 export async function loadDoc(kind: DocKind, id: string, pid?: string, opts: { prices?: boolean } = {}): Promise<LoadedDoc | null> {
   if (!ObjectId.isValid(id)) return null;
   const company = await getCompany();
+
+  if (kind === 'statement') {
+    const contact = await getContact(id);
+    if (!contact) return null;
+    const invs = (await listInvoices({})).filter((i) => i.contactId === id && i.status !== 'draft');
+    type Row = { date: string; ref: string; text: string; charge: number; paid: number };
+    const rows: Row[] = [];
+    for (const i of invs) {
+      rows.push({ date: i.date, ref: i.number ?? '', text: `Invoice, due ${fmtDate(i.dueDate)}`, charge: docTotals(i.lines).total, paid: 0 });
+      for (const p of i.payments) rows.push({ date: p.date, ref: p.ref, text: `Payment for ${i.number}`, charge: 0, paid: p.amount });
+    }
+    rows.sort((a, b) => a.date.localeCompare(b.date) || a.ref.localeCompare(b.ref));
+    let run = 0;
+    const today = new Date().toISOString().slice(0, 10);
+    const ages: Record<string, number> = {};
+    for (const [k] of AGE) ages[k] = 0;
+    for (const i of invs.filter((x) => x.status === 'posted')) { const k = ageBucket(i.dueDate, today); ages[k] = r2(ages[k] + docTotals(i.lines, i.payments).balance); }
+    const number = `As of ${fmtDate(today)}`;
+    return {
+      title: 'Statement of account', number, party: contact, model: 'contact', recordId: id, back: `/contacts/${id}`, backLabel: 'Back to the contact',
+      node: (
+        <article className="paper">
+          <PaperHead company={company} title="Statement of account" number={number} party={contact} partyLabel="Customer" showTax meta={[['Currency', 'USD']]} />
+          <table>
+            <thead><tr><th>Date</th><th>Reference</th><th>Description</th><th className="r">Invoices</th><th className="r">Payments</th><th className="r">Balance</th></tr></thead>
+            <tbody>{rows.length ? rows.map((x, i) => { run = r2(run + x.charge - x.paid); return <tr key={i}><td>{fmtDate(x.date)}</td><td>{x.ref}</td><td>{x.text}</td><td className="r">{x.charge ? money(x.charge) : ''}</td><td className="r">{x.paid ? money(x.paid) : ''}</td><td className="r">{money(run)}</td></tr>; }) : <tr><td colSpan={6}>No invoices yet.</td></tr>}</tbody>
+          </table>
+          <div className="tot"><div className="g"><span>Balance due</span><span>{money(run)}</span></div></div>
+          <h3>Ageing of open invoices</h3>
+          <table><thead><tr>{AGE.map(([, l]) => <th key={l} className="r">{l}</th>)}</tr></thead><tbody><tr>{AGE.map(([k]) => <td key={k} className="r">{money(ages[k])}</td>)}</tr></tbody></table>
+          <PaperFoot company={company} note="Please contact us if anything on this statement looks wrong." />
+        </article>
+      ),
+    };
+  }
 
   if (kind === 'confirm' || kind === 'vouchers') {
     const b = await getBooking(id);

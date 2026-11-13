@@ -7,7 +7,7 @@ import { DOC_KINDS, label } from './constants';
 import type { BookingDoc } from './types';
 
 /** Records that can carry files, and the collection each lives in. */
-export const ATTACH_MODELS = { booking: 'bookings', purchase: 'purchases', expense: 'expenses' } as const;
+export const ATTACH_MODELS = { booking: 'bookings', purchase: 'purchases', expense: 'expenses', request: 'requests' } as const;
 export type AttachModel = keyof typeof ATTACH_MODELS;
 const MAX_BYTES = 4 * 1024 * 1024;
 
