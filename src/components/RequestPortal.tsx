@@ -87,7 +87,16 @@ export function RequestPortal({ initial, perms, response, uploads }: { initial: 
               <h2>Documents</h2>
               {r.docs.length ? <ul className="paylist">{r.docs.map((d) => (
                 <li key={d.id}><span>{label(DOC_KINDS, d.kind)}{d.traveller ? `, ${d.traveller}` : ''}: {d.name} <span className="muted">{fmtDateTime(d.at)}</span></span>
-                  {perms.documents !== 'none' && <span className="payr"><a className="btn" href={`/api/portal/files/request/${r.id}/${d.id}`} target="_blank" rel="noopener">View</a></span>}</li>))}</ul>
+                  {perms.documents !== 'none' && <span className="payr">
+                    <a className="btn" href={`/api/portal/files/request/${r.id}/${d.id}`} target="_blank" rel="noopener">View</a>{' '}
+                    <a className="btn" href={`/api/portal/files/request/${r.id}/${d.id}?download=1`}>Download</a>
+                    {canWrite && perms.documents === 'upload' && d.fromPortal && <button className="icon-btn" aria-label={`Remove ${d.name}`} onClick={async () => {
+                      if (!window.confirm(`Remove ${d.name}? Our team will see a note that you removed it.`)) return;
+                      const res = await fetch(`/api/portal/files/request/${r.id}/${d.id}`, { method: 'DELETE' });
+                      const data = await res.json().catch(() => ({}));
+                      if (!res.ok) { toast((data as { error?: string }).error || 'Something went wrong. Try again.', 'err'); return; }
+                      setR({ ...r, docs: data as typeof r.docs, messages: [...r.messages, { at: new Date().toISOString(), by: '', side: 'system', text: `File removed: ${d.name}.` }] }); toast('File removed.');
+                    }}>×</button>}</span>}</li>))}</ul>
                 : <p className="muted" style={{ margin: 0 }}>No documents yet.</p>}
               {canWrite && perms.documents === 'upload' && uploads && open && (
                 <div className="addrow">

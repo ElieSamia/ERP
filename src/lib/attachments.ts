@@ -76,12 +76,23 @@ export async function setShared(m: AttachModel, id: string, docId: string, share
   return publicDocs(await docsOf(m, id));
 }
 
-export async function removeDoc(m: AttachModel, id: string, docId: string, by: string) {
+/**
+ * Removes a file. Every removal leaves a trace: a line in the record's activity log, and on purchase orders and
+ * requests a note in the conversation the supplier or customer sees, saying who removed what.
+ * `who` is shown in that note ("our team" for staff, the person's name for portal users).
+ */
+export async function removeDoc(m: AttachModel, id: string, docId: string, by: string, opts: { who?: string; onlyFromPortal?: boolean } = {}) {
   const doc = (await docsOf(m, id)).find((x) => x.id === docId);
   if (!doc) throw new HttpError(404, 'Document not found.');
+  if (opts.onlyFromPortal && !doc.fromPortal) throw new HttpError(403, 'Only files sent from the portal can be removed here. Files from our team stay; send us a message if one is wrong.');
   if (doc.pathname) await del(doc.pathname, storeOpts()).catch((e) => console.error('Could not delete file', e));
-  await (await col(m)).updateOne({ _id: oid(id) }, { $pull: { docs: { id: docId } } } as never);
-  await logActivity(m, id, by, `Document removed: ${doc.name}.`);
+  const note = `${label(DOC_KINDS, doc.kind)} removed by ${opts.who ?? 'our team'}: ${doc.name}.`;
+  const thread = m === 'purchase' ? 'thread' : m === 'request' ? 'messages' : null;
+  await (await col(m)).updateOne({ _id: oid(id) }, {
+    $pull: { docs: { id: docId } },
+    ...(thread ? { $push: { [thread]: { at: new Date(), by: '', side: 'system', text: note } } } : {}),
+  } as never);
+  await logActivity(m, id, by, `${label(DOC_KINDS, doc.kind)} removed: ${doc.name}${doc.fromPortal ? ' (it had been sent from the portal)' : ''}.`);
   return publicDocs(await docsOf(m, id));
 }
 

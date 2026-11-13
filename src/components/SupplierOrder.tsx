@@ -63,6 +63,17 @@ export function SupplierOrder({ initial, canRespond, canBill }: { initial: Po; c
     } catch (e) { toast((e as Error).message, 'err'); } finally { setBusy(false); }
   }
 
+  async function removeFile(d: BookingDoc) {
+    if (!window.confirm(`Remove ${d.name}? Our team will see a note that you removed it.`)) return;
+    try {
+      const res = await fetch(`/api/portal/files/purchase/${po.id}/${d.id}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data as { error?: string }).error || 'Something went wrong. Try again.');
+      setPo({ ...po, docs: (data as BookingDoc[]).filter((x) => x.shared !== 'no'), thread: [...po.thread, { at: new Date().toISOString(), by: '', side: 'system', text: `${label(DOC_KINDS, d.kind)} removed: ${d.name}.` }] });
+      router.refresh(); toast('File removed.');
+    } catch (e) { toast((e as Error).message, 'err'); }
+  }
+
   const open = po.status === 'confirmed';
   return (
     <>
@@ -107,7 +118,11 @@ export function SupplierOrder({ initial, canRespond, canBill }: { initial: Po; c
               <thead><tr><th>Type</th><th>File</th><th>Added</th><th><span className="sr">View</span></th></tr></thead>
               <tbody>{po.docs.map((d) => (
                 <tr key={d.id}><td>{label(DOC_KINDS, d.kind)}</td><td>{d.name}</td><td className="muted">{fmtDateTime(d.at)}<span style={{ display: 'block', fontSize: 12.5 }}>{d.by}</span></td>
-                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}><a className="btn" href={`/api/portal/files/purchase/${po.id}/${d.id}`} target="_blank" rel="noopener">View</a></td></tr>))}
+                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <a className="btn" href={`/api/portal/files/purchase/${po.id}/${d.id}`} target="_blank" rel="noopener">View</a>{' '}
+                    <a className="btn" href={`/api/portal/files/purchase/${po.id}/${d.id}?download=1`}>Download</a>
+                    {d.fromPortal && kinds.length > 0 && (canRespond || d.kind === 'bill') && <button className="icon-btn" onClick={() => removeFile(d)} aria-label={`Remove ${d.name}`}>×</button>}
+                  </td></tr>))}
               </tbody></table></div>
           ) : <p className="muted" style={{ margin: 0 }}>No files yet.</p>}
           {po.status !== 'cancelled' && kinds.length > 0 && (
@@ -119,7 +134,7 @@ export function SupplierOrder({ initial, canRespond, canBill }: { initial: Po; c
                 <input key={docKey} id="sd-file" type="file" className="filein" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" onChange={(e) => setDoc({ ...doc, file: e.target.files?.[0] ?? null })} />
                 <button className="btn primary" onClick={sendFile} disabled={busy}>{busy ? 'Uploading…' : 'Upload a file'}</button>
               </div>
-              <p className="hint">Confirmations, vouchers, ticket copies or the bill file, as a PDF or image up to 4 MB. Our team sees it straight away. To replace a file, upload the new one and tell us in a message.</p>
+              <p className="hint">Confirmations, vouchers, ticket copies or the bill file, as a PDF or image up to 4 MB. Our team sees it straight away. You can remove files you sent with ×; our team sees a note of every removal.</p>
             </>
           )}
         </section>
