@@ -4,14 +4,14 @@ import { handle, HttpError, oid, requireUser } from '@/lib/api';
 import { getActivity } from '@/lib/queries';
 import { logActivity } from '@/lib/activity';
 
-const COLLECTION = { contact: 'contacts', lead: 'leads', booking: 'bookings', invoice: 'invoices', purchase: 'purchases', expense: 'expenses', move: 'moves' } as const;
-const noteSchema = z.object({ model: z.enum(['contact', 'lead', 'booking', 'invoice', 'purchase', 'expense', 'move']), id: z.string(), text: z.string().trim().min(1, 'Write a note first.').max(4000) });
+const COLLECTION = { contact: 'contacts', lead: 'leads', booking: 'bookings', invoice: 'invoices', purchase: 'purchases', expense: 'expenses', move: 'moves', request: 'requests' } as const;
+const noteSchema = z.object({ model: z.enum(['contact', 'lead', 'booking', 'invoice', 'purchase', 'expense', 'move', 'request']), id: z.string(), text: z.string().trim().min(1, 'Write a note first.').max(4000) });
 
 export async function GET(req: Request) {
   return handle(async () => {
     await requireUser();
     const p = new URL(req.url).searchParams;
-    const model = z.enum(['contact', 'lead', 'booking', 'invoice', 'purchase', 'expense', 'move']).parse(p.get('model'));
+    const model = z.enum(['contact', 'lead', 'booking', 'invoice', 'purchase', 'expense', 'move', 'request']).parse(p.get('model'));
     return getActivity(model, String(p.get('id') || ''));
   });
 }

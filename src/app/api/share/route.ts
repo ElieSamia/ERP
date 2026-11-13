@@ -7,7 +7,7 @@ import { logActivity } from '@/lib/activity';
 import { fmtDate } from '@/lib/constants';
 
 const schema = z.object({
-  kind: z.enum(['confirm', 'vouchers', 'invoice', 'receipt', 'po', 'voucher']),
+  kind: z.enum(['confirm', 'vouchers', 'invoice', 'receipt', 'po', 'voucher', 'statement']),
   id: z.string().min(1),
   pid: z.string().optional(),
   prices: z.boolean().optional(),

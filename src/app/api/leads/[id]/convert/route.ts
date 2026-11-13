@@ -3,6 +3,7 @@ import { handle, HttpError, oid, requireUser } from '@/lib/api';
 import { checkReferences, getBooking, nextBookingRef } from '@/lib/bookings';
 import { logActivity } from '@/lib/activity';
 import { fmtDate, money } from '@/lib/constants';
+import { requestFromStage } from '@/lib/portal';
 
 /** Turns an opportunity into a draft booking, carrying its details into the internal notes. */
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -15,6 +16,12 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     if (l.bookingId) {
       const existing = await getBooking(String(l.bookingId));
       if (existing) return existing;
+    }
+    if (l.requestId) {
+      await requestFromStage(id, String(l.requestId), 'won', user.name);
+      const r = await d.collection('requests').findOne({ _id: oid(String(l.requestId)) });
+      const b = r?.bookingId ? await getBooking(String(r.bookingId)) : null;
+      if (b) return b;
     }
     if (l.stage === 'lost') throw new HttpError(409, 'This opportunity is lost. Move it back to an open stage first.');
     await checkReferences(String(l.contactId), []);

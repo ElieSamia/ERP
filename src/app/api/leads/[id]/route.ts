@@ -4,6 +4,7 @@ import { leadSchema } from '@/lib/schemas';
 import { getLead } from '@/lib/queries';
 import { logActivity } from '@/lib/activity';
 import { label, LEAD_STAGES } from '@/lib/constants';
+import { requestFromStage } from '@/lib/portal';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -29,6 +30,12 @@ export async function PATCH(req: Request, { params }: Ctx) {
       const c = await d.collection('contacts').findOne({ _id: oid(data.contactId) });
       if (!c || c.type === 'supplier') throw new HttpError(400, 'Choose a customer, agency or corporate account.');
     }
+    // Portal opportunities: the stage is driven through the request, so the customer sees the same status.
+    if (before.requestId && data.stage && data.stage !== before.stage) {
+      await requestFromStage(id, String(before.requestId), data.stage, user.name);
+      delete data.stage;
+    }
+    if (before.requestId && data.contactId && data.contactId !== before.contactId) throw new HttpError(409, 'The customer of a portal opportunity comes from the request and can’t change.');
     await d.collection('leads').updateOne({ _id: oid(id) }, { $set: { ...data, updatedAt: new Date(), updatedBy: user.name } });
     if (data.stage && data.stage !== before.stage) await logActivity('lead', id, user.name, `Stage changed to ${label(LEAD_STAGES, data.stage)}.`);
     if (Object.keys(data).some((k) => k !== 'stage')) await logActivity('lead', id, user.name, 'Details updated.');
