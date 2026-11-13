@@ -10,6 +10,18 @@ import type { BookingDoc } from './types';
 export const ATTACH_MODELS = { booking: 'bookings', purchase: 'purchases', expense: 'expenses' } as const;
 export type AttachModel = keyof typeof ATTACH_MODELS;
 const MAX_BYTES = 4 * 1024 * 1024;
+
+/**
+ * Vercel names the store variable after the prefix chosen when connecting it: BLOB_STORE_ID by default,
+ * but for example BLOB_READ_WRITE_TOKEN_STORE_ID with another prefix. Accept any of them, plus the older token.
+ */
+function blobStoreId() {
+  if (process.env.BLOB_STORE_ID) return process.env.BLOB_STORE_ID;
+  const key = Object.keys(process.env).find((k) => /^BLOB\w*_STORE_ID$/.test(k) && process.env[k]);
+  return key ? process.env[key] : undefined;
+}
+const storeOpts = () => { const storeId = blobStoreId(); return storeId ? { storeId } : {}; };
+const storageReady = () => !!(process.env.BLOB_READ_WRITE_TOKEN || blobStoreId());
 type StoredDoc = BookingDoc & { pathname?: string };
 
 export function attachModel(m: string): AttachModel {
@@ -31,7 +43,7 @@ async function docsOf(m: AttachModel, id: string) {
 
 /** Uploads one file to the private Blob store and adds it to the record. */
 export async function attach(m: AttachModel, id: string, form: FormData, by: string) {
-  if (!process.env.BLOB_READ_WRITE_TOKEN && !process.env.BLOB_STORE_ID)
+  if (!storageReady())
     throw new HttpError(503, 'File storage isn’t connected yet. In Vercel, open Storage, create a private Blob store and connect it to this project.');
   await docsOf(m, id);
   const file = form.get('file');
@@ -41,7 +53,7 @@ export async function attach(m: AttachModel, id: string, form: FormData, by: str
   const kind = String(form.get('kind') || 'other');
   if (!DOC_KINDS.some(([k]) => k === kind)) throw new HttpError(400, 'Choose the document type.');
   const safe = file.name.replace(/[^\w.\-]+/g, '_').slice(-80) || 'file';
-  const blob = await put(`${ATTACH_MODELS[m]}/${id}/${safe}`, file, { access: 'private', addRandomSuffix: true, contentType: file.type });
+  const blob = await put(`${ATTACH_MODELS[m]}/${id}/${safe}`, file, { access: 'private', addRandomSuffix: true, contentType: file.type, ...storeOpts() });
   const doc: StoredDoc = {
     id: randomUUID(), kind, traveller: String(form.get('traveller') || '').slice(0, 120), name: file.name.slice(0, 160), size: file.size, type: file.type,
     pathname: blob.pathname, at: new Date().toISOString(), by, shared: 'yes',
@@ -61,7 +73,7 @@ export async function setShared(m: AttachModel, id: string, docId: string, share
 export async function removeDoc(m: AttachModel, id: string, docId: string, by: string) {
   const doc = (await docsOf(m, id)).find((x) => x.id === docId);
   if (!doc) throw new HttpError(404, 'Document not found.');
-  if (doc.pathname) await del(doc.pathname).catch((e) => console.error('Could not delete file', e));
+  if (doc.pathname) await del(doc.pathname, storeOpts()).catch((e) => console.error('Could not delete file', e));
   await (await col(m)).updateOne({ _id: oid(id) }, { $pull: { docs: { id: docId } } } as never);
   await logActivity(m, id, by, `Document removed: ${doc.name}.`);
   return publicDocs(await docsOf(m, id));
@@ -70,13 +82,13 @@ export async function removeDoc(m: AttachModel, id: string, docId: string, by: s
 /** Deletes every stored file of a record, used when a draft record is deleted. */
 export async function removeAllFiles(docs: unknown) {
   const paths = ((docs as StoredDoc[]) || []).map((x) => x.pathname).filter((x): x is string => !!x);
-  if (paths.length) await del(paths).catch((e) => console.error('Could not delete files', e));
+  if (paths.length) await del(paths, storeOpts()).catch((e) => console.error('Could not delete files', e));
 }
 
 export async function openFile(m: AttachModel, id: string, docId: string, download: boolean) {
   const doc = (await docsOf(m, id)).find((x) => x.id === docId);
   if (!doc?.pathname) throw new HttpError(404, 'File not found.');
-  const res = await get(doc.pathname, { access: 'private' });
+  const res = await get(doc.pathname, { access: 'private', ...storeOpts() });
   if (!res || res.statusCode !== 200) throw new HttpError(404, 'File not found in storage.');
   return new Response(res.stream, {
     headers: {
