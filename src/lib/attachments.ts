@@ -38,6 +38,7 @@ const col = async (m: AttachModel) => (await db()).collection(ATTACH_MODELS[m]);
 /** The file list as the browser sees it: storage paths never leave the server. */
 export const publicDocs = (docs: unknown): BookingDoc[] => ((docs as StoredDoc[]) || []).map((x) => ({
   id: x.id, kind: x.kind, traveller: x.traveller || '', name: x.name, size: x.size, type: x.type, at: x.at, by: x.by, shared: x.shared === 'no' ? 'no' : 'yes',
+  ...(x.fromPortal ? { fromPortal: true } : {}),
 }));
 
 async function docsOf(m: AttachModel, id: string) {
@@ -47,7 +48,7 @@ async function docsOf(m: AttachModel, id: string) {
 }
 
 /** Uploads one file to the private Blob store and adds it to the record. */
-export async function attach(m: AttachModel, id: string, form: FormData, by: string) {
+export async function attach(m: AttachModel, id: string, form: FormData, by: string, opts: { fromPortal?: boolean } = {}) {
   if (!storageReady())
     throw new HttpError(503, 'File storage isn’t connected yet. In Vercel, open Storage, create a private Blob store and connect it to this project.');
   await docsOf(m, id);
@@ -61,7 +62,7 @@ export async function attach(m: AttachModel, id: string, form: FormData, by: str
   const blob = await put(`${ATTACH_MODELS[m]}/${id}/${safe}`, file, { access: 'private', addRandomSuffix: true, contentType: file.type, ...storeOpts() });
   const doc: StoredDoc = {
     id: randomUUID(), kind, traveller: String(form.get('traveller') || '').slice(0, 120), name: file.name.slice(0, 160), size: file.size, type: file.type,
-    pathname: blob.pathname, at: new Date().toISOString(), by, shared: 'yes',
+    pathname: blob.pathname, at: new Date().toISOString(), by, shared: 'yes', ...(opts.fromPortal ? { fromPortal: true } : {}),
   };
   await (await col(m)).updateOne({ _id: oid(id) }, { $push: { docs: doc } } as never);
   await logActivity(m, id, by, `${label(DOC_KINDS, kind)} attached: ${doc.name}.`);

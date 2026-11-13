@@ -85,7 +85,7 @@ export function DocumentsPanel({ model, id, docs: initial, travellers, defaultKi
                   <td>{label(DOC_KINDS, d.kind)}</td>
                   {travellers && <td>{d.traveller || 'Whole booking'}</td>}
                   <td>{d.name} <span className="muted">{fmtSize(d.size)}</span></td>
-                  <td>{fmtDateTime(d.at)}<span className="muted" style={{ display: 'block', fontSize: 12.5 }}>{d.by}</span></td>
+                  <td>{fmtDateTime(d.at)}<span className="muted" style={{ display: 'block', fontSize: 12.5 }}>{d.by}</span>{d.fromPortal && <span className="badge b-accent" style={{ marginTop: 3 }}>From the portal</span>}</td>
                   {showPortal && <td><label className="tgl"><input type="checkbox" checked={d.shared !== 'no'} onChange={(e) => share(d, e.target.checked)} />Shown</label></td>}
                   <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
                     <a className="btn" href={`${base}/${d.id}`} target="_blank" rel="noopener">View</a>{' '}

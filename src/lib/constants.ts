@@ -57,6 +57,8 @@ export const DOC_KINDS = [
   ['passport', 'Passport'], ['id', 'ID card'], ['photo', 'Photo'],
   ['bill', 'Supplier bill or invoice'], ['quote', 'Supplier quote or confirmation'], ['receipt', 'Receipt'], ['other', 'Other'],
 ] as const;
+/** File types a supplier can send on an order, and the ones that need booking rights rather than accounts rights. */
+export const SUPPLIER_DOC_KINDS = ['quote', 'voucher', 'tvoucher', 'avoucher', 'ticket', 'evisa', 'insurance', 'bill', 'other'] as const;
 
 export type Channel = 'B2C' | 'B2B' | 'Corporate';
 export const CHANNEL: Record<string, Channel> = { customer: 'B2C', agency: 'B2B', corporate: 'Corporate', supplier: 'B2C' };

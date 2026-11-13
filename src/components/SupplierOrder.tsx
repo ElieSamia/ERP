@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/client';
-import { DOC_KINDS, fmtDate, fmtDateTime, label, money, todayISO } from '@/lib/constants';
+import { DOC_KINDS, SUPPLIER_DOC_KINDS, fmtDate, fmtDateTime, label, money, todayISO } from '@/lib/constants';
 import type { BookingDoc, Purchase } from '@/lib/types';
 import { Thread } from './RequestParts';
 import { shrink } from './DocumentsPanel';
@@ -16,6 +16,9 @@ export function SupplierOrder({ initial, canRespond, canBill }: { initial: Po; c
   const [ref, setRef] = useState('');
   const [bill, setBill] = useState({ billRef: '', billDate: todayISO(), amount: String(initial.total) });
   const [file, setFile] = useState<File | null>(null);
+  const kinds = SUPPLIER_DOC_KINDS.filter((k) => (canRespond ? true : canBill && k === 'bill'));
+  const [doc, setDoc] = useState<{ kind: string; file: File | null }>({ kind: kinds[0] ?? 'bill', file: null });
+  const [docKey, setDocKey] = useState(0);
   const [busy, setBusy] = useState(false);
   const toast = useToast();
   const router = useRouter();
@@ -45,6 +48,21 @@ export function SupplierOrder({ initial, canRespond, canBill }: { initial: Po; c
     } catch (e) { toast((e as Error).message, 'err'); } finally { setBusy(false); }
   }
 
+  async function sendFile() {
+    if (!doc.file) return toast('Choose a file to upload.', 'err');
+    setBusy(true);
+    try {
+      const f = await shrink(doc.file);
+      if (f.size > 4 * 1024 * 1024) throw new Error('That file is over 4 MB. Attach a smaller file.');
+      const fd = new FormData();
+      fd.append('file', f); fd.append('kind', doc.kind);
+      const res = await fetch(`/api/portal/orders/${po.id}/docs`, { method: 'POST', body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data as { error?: string }).error || 'Something went wrong. Try again.');
+      done(data as Purchase); setDoc({ ...doc, file: null }); setDocKey((k) => k + 1); toast(`${f.name} uploaded.`);
+    } catch (e) { toast((e as Error).message, 'err'); } finally { setBusy(false); }
+  }
+
   const open = po.status === 'confirmed';
   return (
     <>
@@ -67,7 +85,7 @@ export function SupplierOrder({ initial, canRespond, canBill }: { initial: Po; c
         {po.supplierBill ? (
           <p style={{ margin: 0 }}>Bill <b>{po.supplierBill.ref}</b> of {fmtDate(po.supplierBill.date)} for <b>{money(po.supplierBill.amount)}</b>, uploaded {fmtDateTime(po.supplierBill.at)}.{' '}
             {po.status === 'confirmed' ? <span className="badge b-amber">Waiting for us to record it</span> : <span className="badge b-green">Recorded</span>}</p>
-        ) : po.status !== 'confirmed' ? <p className="muted" style={{ margin: 0 }}>{po.status === 'cancelled' ? 'No bill is needed for a cancelled order.' : 'Already billed.'}</p>
+        ) : po.status !== 'confirmed' ? <p className="muted" style={{ margin: 0 }}>{po.status === 'cancelled' ? 'No bill is needed for a cancelled order.' : 'We have recorded the bill for this order.'}{po.status !== 'cancelled' && kinds.includes('bill') ? ' To send us the bill file, upload it under Files below as a supplier bill.' : ''}</p>
           : canBill ? (
             <>
               <div className="grid">
@@ -81,13 +99,29 @@ export function SupplierOrder({ initial, canRespond, canBill }: { initial: Po; c
             </>
           ) : <p className="muted" style={{ margin: 0 }}>No bill uploaded yet.</p>}
       </section>
-      {po.docs.length > 0 && (
+      {(po.docs.length > 0 || (po.status !== 'cancelled' && kinds.length > 0)) && (
         <section className="sheet" style={{ marginBottom: 16 }}>
           <h2>Files</h2>
-          <div className="table-wrap"><table className="lines"><tbody>{po.docs.map((d) => (
-            <tr key={d.id}><td>{label(DOC_KINDS, d.kind)}</td><td>{d.name}</td><td className="muted">{d.by}</td>
-              <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}><a className="btn" href={`/api/portal/files/purchase/${po.id}/${d.id}`} target="_blank" rel="noopener">View</a></td></tr>))}
-          </tbody></table></div>
+          {po.docs.length > 0 ? (
+            <div className="table-wrap"><table className="lines">
+              <thead><tr><th>Type</th><th>File</th><th>Added</th><th><span className="sr">View</span></th></tr></thead>
+              <tbody>{po.docs.map((d) => (
+                <tr key={d.id}><td>{label(DOC_KINDS, d.kind)}</td><td>{d.name}</td><td className="muted">{fmtDateTime(d.at)}<span style={{ display: 'block', fontSize: 12.5 }}>{d.by}</span></td>
+                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}><a className="btn" href={`/api/portal/files/purchase/${po.id}/${d.id}`} target="_blank" rel="noopener">View</a></td></tr>))}
+              </tbody></table></div>
+          ) : <p className="muted" style={{ margin: 0 }}>No files yet.</p>}
+          {po.status !== 'cancelled' && kinds.length > 0 && (
+            <>
+              <div className="addrow">
+                <label className="sr" htmlFor="sd-kind">Type of file</label>
+                <select id="sd-kind" value={doc.kind} onChange={(e) => setDoc({ ...doc, kind: e.target.value })}>{kinds.map((k) => <option key={k} value={k}>{label(DOC_KINDS, k)}</option>)}</select>
+                <label className="sr" htmlFor="sd-file">File</label>
+                <input key={docKey} id="sd-file" type="file" className="filein" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" onChange={(e) => setDoc({ ...doc, file: e.target.files?.[0] ?? null })} />
+                <button className="btn primary" onClick={sendFile} disabled={busy}>{busy ? 'Uploading…' : 'Upload a file'}</button>
+              </div>
+              <p className="hint">Confirmations, vouchers, ticket copies or the bill file, as a PDF or image up to 4 MB. Our team sees it straight away. To replace a file, upload the new one and tell us in a message.</p>
+            </>
+          )}
         </section>
       )}
       <Thread messages={po.thread} mine="customer" canWrite={canRespond && po.status !== 'cancelled'} onSend={send} placeholder="Write to our reservations team" />
