@@ -11,6 +11,7 @@ const PATHS: Record<string, string> = {
   globe: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18',
   calendar: 'M4 6h16v15H4zM4 10h16M8 3v4M16 3v4M8 14h2M12 14h2M8 17h2',
   tag: 'M3 12V4h8l10 10-8 8zM7.5 7.5h.01',
+  chart: 'M4 20V4M4 20h16M8 16v-5M12 16V8M16 16v-3M20 16V6',
 };
 
 export function Icon({ name, size = 22 }: { name: string; size?: number }) {
