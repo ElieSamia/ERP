@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { getCompany } from '@/lib/queries';
 import { getSession } from '@/lib/auth';
 import { Icon } from '@/components/Icon';
+import { weekCount } from '@/lib/calendar';
 import type { Db } from 'mongodb';
 
 /** A trip file is active until its travel is over, whatever its invoicing status. Cancelled files never count. */
@@ -28,6 +29,7 @@ export default async function Home() {
     d.collection('purchases').countDocuments({ status: { $in: ['draft', 'confirmed', 'billed'] } }),
     d.collection('expenses').countDocuments({ status: 'draft' }),
   ]);
+  const [products, week] = await Promise.all([d.collection('products').countDocuments({ active: { $ne: false } }), weekCount()]);
   return (
     <section className="home">
       <h1>{company.name || 'Travel ERP'}</h1>
@@ -37,9 +39,11 @@ export default async function Home() {
         <Link className="app" href="/bookings"><span className="ico"><Icon name="plane" /></span><b>Bookings</b><span>{active} active trip file{active === 1 ? '' : 's'}</span></Link>
         <Link className="app" href="/invoicing"><span className="ico"><Icon name="doc" /></span><b>Invoicing</b><span>{unpaid} unpaid invoice{unpaid === 1 ? '' : 's'}</span></Link>
         <Link className="app" href="/purchasing"><span className="ico"><Icon name="cart" /></span><b>Purchasing</b><span>{openPOs} open order{openPOs === 1 ? '' : 's'}</span></Link>
+        <Link className="app" href="/calendar"><span className="ico"><Icon name="calendar" /></span><b>Calendar</b><span>{week} item{week === 1 ? '' : 's'} in the next 7 days</span></Link>
         <Link className="app" href="/expenses"><span className="ico"><Icon name="receipt" /></span><b>Expenses</b><span>{draftExp} draft{draftExp === 1 ? '' : 's'} to post</span></Link>
         <Link className="app" href="/accounting"><span className="ico"><Icon name="ledger" /></span><b>Accounting</b><span>Journal, reports and VAT, administrators only</span></Link>
         <Link className="app" href="/b2b"><span className="ico"><Icon name="globe" /></span><b>B2B portal</b><span>{reqs} open request{reqs === 1 ? '' : 's'} from customers</span></Link>
+        <Link className="app" href="/products"><span className="ico"><Icon name="tag" /></span><b>Products and pricing</b><span>{products} active product{products === 1 ? '' : 's'} in the catalogue</span></Link>
         <Link className="app" href="/contacts"><span className="ico"><Icon name="person" /></span><b>Contacts</b><span>{contacts} customers, agencies and suppliers</span></Link>
         <Link className="app" href="/settings"><span className="ico"><Icon name="gear" /></span><b>Settings</b><span>Company, markups, payments and staff users</span></Link>
       </div>
