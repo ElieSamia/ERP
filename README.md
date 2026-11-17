@@ -31,6 +31,27 @@ A travel agency ERP built with Next.js and MongoDB, following the design of the 
   balances and adjustments and post only when debits equal credits. Reports: trial balance, general ledger,
   profit and loss, balance sheet, VAT summary by quarter with LBP equivalents, and outstanding balances with ageing.
   Settings choose which account each service, expense category and payment account posts to, and hold currency rates.
+- **B2B portal, part 1** (phase 5): customers, agencies and corporate accounts sign in at `/portal` with their own
+  accounts, separate from staff sign-in. Staff tick Portal access on a contact, then invite its people from the
+  B2B portal app; each person sets their own password from a one-time link. Built-in roles (Account admin, Booker,
+  Finance, Viewer, Traveller) plus custom roles control requests, quote acceptance with approval limits, bookings,
+  prices, personal documents, invoices, the statement and team management, and every rule is checked on the server.
+  Requests appear in the CRM pipeline and stay in step both ways. After 5 wrong passwords, staff and portal
+  accounts are locked for 15 minutes.
+- **B2B portal, part 2**: suppliers sign in at the same `/portal`. They see purchase orders once you confirm
+  them (never your selling prices or internal notes), confirm them with their own reference, message your team,
+  upload their bill for you to check and record, and see payment vouchers and their statement. Supplier roles:
+  Supplier admin, Reservations and Accounts. Staff and account admins can edit a portal user's name and email.
+- VAT now defaults to 0% for every service type; 11% stays available on each line.
+- **Products and pricing** (phase 6): a catalogue of the services you sell often, each with its supplier, cost,
+  markup (channel default, percentage or fixed USD) and VAT. The list shows the selling price for B2C, B2B and
+  Corporate. On a booking, Add from catalogue fills in the service in one click; changing a product later never
+  changes bookings already made. Products used on bookings are archived rather than deleted.
+- **Calendar** (phase 6): a month grid and a list, built live from your records: departures and returns, hotel
+  check-ins and check-outs and other services, customer payments due, supplier payments due, travel dates of open
+  opportunities, portal quotes about to expire, and shared reminders your team adds.
+- Upload buttons name the chosen file and pulse until it is uploaded, and the browser asks before leaving the page
+  with a file chosen but not sent.
 - **Share links**: every printed document can be shared by email or WhatsApp. The ERP creates a random link that
   opens only that document, without signing in, and stops working after 30 days (or when cancelled). The message
   opens in your own email app or WhatsApp, and each share is noted in the record's activity log.
@@ -84,6 +105,11 @@ npm run dev                  # opens on http://localhost:3000
 | `expenses` | Running costs |
 | `accounts` | Chart of accounts (code, name, type) |
 | `moves` | Journal entries; automatic ones carry the key of the document they come from |
+| `portalUsers` | Portal sign-ins for customer accounts; passwords and invitation tokens stored only as hashes |
+| `portalRoles` | Custom portal roles (the built-in ones are in the code) |
+| `requests` | Portal requests, with quote, conversation and attached files |
+| `products` | Catalogue of services with cost, markup and VAT |
+| `reminders` | Shared calendar reminders |
 | `shares` | Share links for documents; they delete themselves when they expire |
 | `counters` | Running numbers for bookings, invoices (per year), receipts, orders, vouchers and expenses |
 
@@ -95,7 +121,7 @@ Document files themselves live in the private Blob store, never in MongoDB.
 1. ~~Bookings~~ (done in phase 2).
 2. ~~Invoicing and payments with receipts, purchasing and expenses~~ (done in phase 3).
 3. ~~Accounting on the Lebanese chart of accounts, currencies and reports~~ (done in phase 4).
-4. B2B portal: requests, quotes, approvals, portal roles and travel documents.
+4. ~~B2B portal for customers~~ (phase 5, part 1). Part 2: supplier portal (done).
 5. Marketing, calendar, document layouts, appearance and WhatsApp or email sharing.
 
 ## Before real use
