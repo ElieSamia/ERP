@@ -426,3 +426,15 @@ a.ag{text-decoration:none}
 .printpage.inline{padding:0;background:none}
 .printpage.inline .paper{margin:0 auto;box-shadow:none;border:1px solid var(--line)}
 .linkbtn{border:0;background:none;color:var(--accent);font:inherit;font-size:13px;cursor:pointer;padding:0 0 0 6px;text-decoration:underline}
+.k-bill{--k:var(--red);--kb:var(--red-soft)}
+.k-lead{--k:#7B61B8;--kb:color-mix(in srgb,#7B61B8 16%,var(--surface))}
+.k-quote{--k:#B7791F;--kb:var(--amber-soft)}
+.calwrap{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
+@media (max-width:980px){.calwrap{grid-template-columns:1fr}}
+.agday h3{font-size:14px;margin:14px 0 6px}.agday h3.today{color:var(--accent)}
+.chip .dot{vertical-align:-1px}
+.calwrap .ag,.agday .ag{grid-template-columns:10px 44px minmax(0,1fr) auto;cursor:default}
+.btn.ready{box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 35%,transparent);animation:readyPulse 1.6s ease-in-out infinite}
+@keyframes readyPulse{50%{box-shadow:0 0 0 6px color-mix(in srgb,var(--accent) 12%,transparent)}}
+@media (prefers-reduced-motion:reduce){.btn.ready{animation:none}}
+.pending{align-self:center;font-size:13px;font-weight:600;color:var(--amber)}
