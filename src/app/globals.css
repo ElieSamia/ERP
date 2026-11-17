@@ -438,3 +438,12 @@ a.ag{text-decoration:none}
 @keyframes readyPulse{50%{box-shadow:0 0 0 6px color-mix(in srgb,var(--accent) 12%,transparent)}}
 @media (prefers-reduced-motion:reduce){.btn.ready{animation:none}}
 .pending{align-self:center;font-size:13px;font-weight:600;color:var(--amber)}
+.repchart{width:100%;height:auto;display:block}
+.repchart .axis{stroke:var(--line)}
+.repchart .lab{fill:var(--muted);font-size:11px}
+.repchart .bar-s{fill:color-mix(in srgb,var(--accent) 30%,var(--surface))}
+.repchart .bar-m{fill:var(--accent)}
+.legend{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.legend .sw{width:12px;height:12px;border-radius:3px;display:inline-block}
+.legend .sw.s{background:color-mix(in srgb,var(--accent) 30%,var(--surface))}.legend .sw.m{background:var(--accent);margin-left:8px}
+@media print{.topbar,.noprint,.tabs{display:none!important}.rep{break-inside:avoid}}
