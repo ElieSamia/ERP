@@ -48,7 +48,11 @@ export type StaffUser = { id: string; name: string; email: string; role: 'admin'
 
 import type { BookingStatus, ServiceType, TripType, ContactType as CT } from './constants';
 
-export type BookingLine = { id: string; type: ServiceType; desc: string; date: string; dateTo: string; supplierId: string; cost: number; markup: number; markupType?: 'percent' | 'amount'; poId?: string };
+export type BookingLine = { id: string; type: ServiceType; desc: string; date: string; dateTo: string; supplierId: string; cost: number; markup: number; markupType?: 'percent' | 'amount'; poId?: string;
+  /** Set when the service came from the catalogue: its product and, if the product fixes one, its VAT rate. */
+  productId?: string; vat?: number;
+  /** The product sets its own markup, so changing the customer's channel doesn't reset it. */
+  fixedMarkup?: boolean };
 export type BookingDoc = {
   /** Uploaded by a customer or supplier in the portal, not by your staff. */
   fromPortal?: boolean; id: string; kind: string; traveller: string; name: string; size: number; type: string; at: string; by: string; shared: 'yes' | 'no' };

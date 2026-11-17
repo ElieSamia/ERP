@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { api } from '@/lib/client';
 import {
-  BOOKING_STATES, CHANNEL, SERVICE_TYPES, TRIP_TYPES, PO_STATES, PO_BADGE, MARKUP_TYPES, fmtDate, fmtMarkup, label, money, sell, totals, travList, serviceDates, type Pricing, type MarkupType,
+  BOOKING_STATES, CHANNEL, SERVICE_TYPES, TRIP_TYPES, PO_STATES, PO_BADGE, MARKUP_TYPES, fmtDate, fmtMarkup, label, money, sell, totals, travList, serviceDates, productMarkup, type Pricing, type MarkupType, type Product,
 } from '@/lib/constants';
 import type { Booking, BookingLine, Option } from '@/lib/types';
 import { TextField, SelectField, TextArea } from './Fields';
@@ -12,6 +12,7 @@ import { CustomerPicker } from './CustomerPicker';
 import { ActivityPanel } from './ActivityPanel';
 import { DocumentsPanel } from './DocumentsPanel';
 import { Icon } from './Icon';
+import { CataloguePicker } from './CataloguePicker';
 import { useToast } from './Toast';
 
 type Draft = Omit<Booking, 'id' | 'ref' | 'status' | 'docs'>;
@@ -90,11 +91,21 @@ export function BookingForm({ initial, suppliers, pricing }: { initial?: Booking
     const svc = b.tripType === 'service';
     set('lines', [...b.lines, { id: newId(), type: svc ? 'visa' : 'flight', desc: '', date: b.departDate || '', dateTo: '', supplierId: '', cost: 0, markup: rate, markupType: rateType }]);
   }
+  const [picker, setPicker] = useState(false);
+  function addProduct(p: Product) {
+    const m = productMarkup(p, channel, pricing);
+    set('lines', [...b.lines, {
+      id: newId(), type: p.type, desc: p.desc || p.name, date: b.departDate || '', dateTo: '', supplierId: p.supplierId, cost: p.cost, ...m,
+      productId: p.id, ...(p.vat === 'default' ? {} : { vat: Number(p.vat) }), ...(p.pricing === 'channel' ? {} : { fixedMarkup: true }),
+    }]);
+    setPicker(false);
+    toast(`${p.name} added. Check the dates, then save.`);
+  }
   function changeCustomer(id: string, name: string, type: string) {
     const ch = CHANNEL[type] ?? 'B2C';
     const newRate = pricing[ch];
     const newType: MarkupType = pricing.modes?.[ch] ?? 'percent';
-    setB({ ...b, contactId: id, contactName: name, contactType: type as Draft['contactType'], lines: status === 'draft' ? b.lines.map((l) => ({ ...l, markup: newRate, markupType: newType })) : b.lines });
+    setB({ ...b, contactId: id, contactName: name, contactType: type as Draft['contactType'], lines: status === 'draft' ? b.lines.map((l) => (l.fixedMarkup ? l : { ...l, markup: newRate, markupType: newType })) : b.lines });
   }
 
   const dateErrors = {
@@ -228,7 +239,8 @@ export function BookingForm({ initial, suppliers, pricing }: { initial?: Booking
                 </table>
               </div>
             ) : <div className="empty">No services yet. Add a flight, hotel or other service to price this trip.</div>}
-            {linesEditable && <div className="addrow"><button className="btn" onClick={addLine}>Add service</button>
+            {picker && <CataloguePicker channel={channel} pricing={pricing} onPick={addProduct} onClose={() => setPicker(false)} />}
+            {linesEditable && <div className="addrow"><button className="btn" onClick={addLine}>Add service</button><button className="btn" onClick={() => setPicker(true)}>Add from catalogue</button>
               <span className="muted" style={{ alignSelf: 'center', fontSize: 13.5 }}>New services get the {channel} markup of {fmtMarkup(rate, rateType)}. Choose % or USD on each service.</span></div>}
             <div className="totals">
               <div><span>Supplier cost</span><b>{money(t.cost)}</b></div>

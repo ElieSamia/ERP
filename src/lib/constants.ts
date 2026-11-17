@@ -287,3 +287,15 @@ export const ORDER_LABEL = (p: { status: string; supplierAck?: unknown; supplier
   p.status === 'cancelled' ? ['Cancelled', 'b-red'] : p.status === 'paid' ? ['Paid', 'b-green'] : p.status === 'billed' ? ['Billed', 'b-accent']
     : p.supplierBill ? ['Bill sent', 'b-accent'] : p.supplierAck ? ['Confirmed', 'b-green'] : ['Waiting for your confirmation', 'b-amber'];
 
+
+/* ---------- Products and pricing (phase 6) ---------- */
+export const PRODUCT_PRICING = [['channel', 'Channel default'], ['percent', 'Percentage'], ['amount', 'Fixed USD']] as const;
+export type ProductPricing = (typeof PRODUCT_PRICING)[number][0];
+export type Product = {
+  id: string; code: string; name: string; type: ServiceType; desc: string; supplierId: string; supplierName?: string;
+  cost: number; pricing: ProductPricing; markup: number; vat: 'default' | '0' | '11'; active: boolean; notes: string; used?: number; createdAt?: string;
+};
+/** The markup a catalogue product gets for a channel: its own, or the channel default from Settings. */
+export function productMarkup(p: Pick<Product, 'pricing' | 'markup'>, channel: Channel, pricing: Pricing): { markup: number; markupType: MarkupType } {
+  return p.pricing === 'channel' ? { markup: pricing[channel], markupType: pricing.modes?.[channel] ?? 'percent' } : { markup: p.markup, markupType: p.pricing };
+}

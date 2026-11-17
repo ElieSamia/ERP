@@ -7,6 +7,7 @@ import type { BookingDoc, Purchase } from '@/lib/types';
 import { Thread } from './RequestParts';
 import { shrink } from './DocumentsPanel';
 import { useToast } from './Toast';
+import { uploadLabel, useLeaveWarning } from './useLeaveWarning';
 
 type Po = Pick<Purchase, 'id' | 'ref' | 'status' | 'supplierAck' | 'thread' | 'supplierBill'> & { docs: BookingDoc[]; total: number };
 
@@ -19,6 +20,7 @@ export function SupplierOrder({ initial, canRespond, canBill }: { initial: Po; c
   const kinds = SUPPLIER_DOC_KINDS.filter((k) => (canRespond ? true : canBill && k === 'bill'));
   const [doc, setDoc] = useState<{ kind: string; file: File | null }>({ kind: kinds[0] ?? 'bill', file: null });
   const [docKey, setDocKey] = useState(0);
+  useLeaveWarning(!!doc.file || !!file);
   const [busy, setBusy] = useState(false);
   const toast = useToast();
   const router = useRouter();
@@ -105,7 +107,7 @@ export function SupplierOrder({ initial, canRespond, canBill }: { initial: Po; c
                 <label className="fld" htmlFor="b-amt"><span>Bill total (USD)</span><input id="b-amt" type="number" min={0} step="0.01" value={bill.amount} onChange={(e) => setBill({ ...bill, amount: e.target.value })} /></label>
                 <label className="fld" htmlFor="b-file"><span>File, PDF or photo up to 4 MB</span><input id="b-file" type="file" className="filein" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></label>
               </div>
-              <div className="addrow"><button className="btn primary" onClick={upload} disabled={busy}>{busy ? 'Uploading…' : 'Upload bill'}</button></div>
+              <div className="addrow"><button className={`btn primary ${file ? 'ready' : ''}`} onClick={upload} disabled={busy || !file}>{busy ? 'Uploading…' : file ? `Upload bill (${file.name.length > 24 ? `${file.name.slice(0, 21)}…` : file.name})` : 'Upload bill'}</button>{file && !busy && <span className="pending">Not uploaded yet</span>}</div>
               <p className="hint">The order total is {money(po.total)}. If your bill differs, send us a message explaining why.</p>
             </>
           ) : <p className="muted" style={{ margin: 0 }}>No bill uploaded yet.</p>}
@@ -132,7 +134,7 @@ export function SupplierOrder({ initial, canRespond, canBill }: { initial: Po; c
                 <select id="sd-kind" value={doc.kind} onChange={(e) => setDoc({ ...doc, kind: e.target.value })}>{kinds.map((k) => <option key={k} value={k}>{label(DOC_KINDS, k)}</option>)}</select>
                 <label className="sr" htmlFor="sd-file">File</label>
                 <input key={docKey} id="sd-file" type="file" className="filein" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" onChange={(e) => setDoc({ ...doc, file: e.target.files?.[0] ?? null })} />
-                <button className="btn primary" onClick={sendFile} disabled={busy}>{busy ? 'Uploading…' : 'Upload a file'}</button>
+                <button className={`btn primary ${doc.file ? 'ready' : ''}`} onClick={sendFile} disabled={busy || !doc.file}>{busy ? 'Uploading…' : uploadLabel(doc.file, 'Upload a file')}</button>{doc.file && !busy && <span className="pending">Not uploaded yet</span>}
               </div>
               <p className="hint">Confirmations, vouchers, ticket copies or the bill file, as a PDF or image up to 4 MB. Our team sees it straight away. You can remove files you sent with ×; our team sees a note of every removal.</p>
             </>

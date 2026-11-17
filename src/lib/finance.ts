@@ -97,7 +97,7 @@ export async function invoiceFromBooking(bookingId: string, by: string) {
   const svcLabel: Record<string, string> = { flight: 'Flight', hotel: 'Hotel', transfer: 'Transfer', visa: 'Visa', package: 'Package', insurance: 'Insurance', other: 'Service' };
   const invLines = ((b.lines as { id: string; type: keyof Finance['vat']; desc: string; cost: number; markup: number; markupType?: MarkupType }[]) || []).map((l) => ({
     id: randomUUID(), type: l.type, desc: `${svcLabel[l.type] ?? 'Service'}: ${l.desc}`,
-    amount: sell(l), vat: fin.vat[l.type] ?? 11,
+    amount: sell(l), vat: (l as { vat?: number }).vat ?? fin.vat[l.type] ?? 0,
   }));
   const r = await d.collection('invoices').insertOne({
     number: null, contactId: b.contactId, bookingId, date, dueDate: due.toISOString().slice(0, 10), status: 'draft',

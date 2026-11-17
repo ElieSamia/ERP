@@ -8,6 +8,7 @@ import { RequestSummary, StatusBar, QuoteBox, Thread } from './RequestParts';
 import { TextField, TextArea, SelectField, NumberField } from './Fields';
 import { shrink } from './DocumentsPanel';
 import { useToast } from './Toast';
+import { uploadLabel, useLeaveWarning } from './useLeaveWarning';
 
 async function call<T>(url: string, body: unknown): Promise<T> {
   const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -30,6 +31,8 @@ export function RequestPortal({ initial, perms, response, uploads }: { initial: 
   const [kind, setKind] = useState('passport');
   const [trav, setTrav] = useState('');
   const file = useRef<HTMLInputElement>(null);
+  const [chosen, setChosen] = useState<File | null>(null);
+  useLeaveWarning(!!chosen);
   const toast = useToast();
   const router = useRouter();
   const open = OPEN_REQ.includes(r.status);
@@ -48,7 +51,7 @@ export function RequestPortal({ initial, perms, response, uploads }: { initial: 
       const res = await fetch(`/api/portal/requests/${r.id}/docs`, { method: 'POST', body: fd });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error((d as { error?: string }).error || 'Upload failed.');
-      setR({ ...r, docs: d }); if (file.current) file.current.value = ''; toast(`${f.name} attached.`);
+      setR({ ...r, docs: d }); if (file.current) file.current.value = ''; setChosen(null); toast(`${f.name} attached.`);
     } catch (e) { toast((e as Error).message, 'err'); } finally { setBusy(false); }
   }
   const q = r.quote;
@@ -102,8 +105,9 @@ export function RequestPortal({ initial, perms, response, uploads }: { initial: 
                 <div className="addrow">
                   <select aria-label="Document type" value={kind} onChange={(e) => setKind(e.target.value)}>{DOC_KINDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
                   <select aria-label="Traveller" value={trav} onChange={(e) => setTrav(e.target.value)}><option value="">Whole request</option>{travellers.map((t) => <option key={t}>{t}</option>)}</select>
-                  <input ref={file} type="file" aria-label="File" accept="image/jpeg,image/png,image/webp,application/pdf" className="filein" />
-                  <button className="btn primary" onClick={attach} disabled={busy}>{busy ? 'Uploading…' : 'Attach'}</button>
+                  <input ref={file} type="file" aria-label="File" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" className="filein" onChange={(e) => setChosen(e.target.files?.[0] ?? null)} />
+                  <button className={`btn primary ${chosen ? 'ready' : ''}`} onClick={attach} disabled={busy || !chosen}>{busy ? 'Uploading…' : uploadLabel(chosen, 'Attach')}</button>
+                  {chosen && !busy && <span className="pending">Not uploaded yet</span>}
                 </div>
               )}
             </section>

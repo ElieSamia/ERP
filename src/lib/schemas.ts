@@ -62,6 +62,9 @@ export const bookingLineSchema = z.object({
   markup: z.coerce.number().min(0, 'Markups can’t be negative.').max(10000000),
   markupType: z.enum(['percent', 'amount']).default('percent'),
   poId: z.string().max(40).optional(),
+  productId: z.string().max(40).optional(),
+  fixedMarkup: z.boolean().optional(),
+  vat: z.coerce.number().refine((v) => v === 0 || v === 11, 'VAT is 0% or 11%.').optional(),
 }).refine((l) => l.markupType === 'amount' || l.markup <= 1000, { message: 'A percentage markup can’t be above 1000%.' });
 
 export const bookingSchema = z.object({
@@ -178,4 +181,25 @@ export const accSettingsSchema = z.object({
   receivable: accCode, payable: accCode, vatOut: accCode, vatIn: accCode, openingOffset: accCode,
   currencies: z.array(z.object({ code: z.string().regex(/^[A-Z]{3}$/, 'Use 3-letter currency codes, like EUR.'), name: z.string().trim().min(1).max(40), rate: z.coerce.number().positive('Rates must be above zero.') })).min(1).max(30),
   ratesUpdated: z.string().default(''),
+});
+
+export const productSchema = z.object({
+  code: z.string().trim().max(30).default(''),
+  name: z.string().trim().min(1, 'Name the product.').max(120),
+  type: z.enum(['flight', 'hotel', 'transfer', 'visa', 'package', 'insurance', 'other']),
+  desc: z.string().trim().max(500).default(''),
+  supplierId: z.string().default(''),
+  cost: z.coerce.number().min(0, 'Costs can’t be negative.'),
+  pricing: z.enum(['channel', 'percent', 'amount']),
+  markup: z.coerce.number().min(0, 'Markups can’t be negative.').max(10000000).default(0),
+  vat: z.enum(['default', '0', '11']).default('default'),
+  active: z.boolean().default(true),
+  notes: z.string().trim().max(2000).default(''),
+}).refine((p) => p.pricing !== 'percent' || p.markup <= 1000, { message: 'A percentage markup can’t be above 1000%.' });
+
+export const reminderSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Choose a date.'),
+  time: z.string().regex(/^(\d{2}:\d{2})?$/, 'Use a time like 09:30.').default(''),
+  title: z.string().trim().min(1, 'Write what to remember.').max(160),
+  note: z.string().trim().max(2000).default(''),
 });

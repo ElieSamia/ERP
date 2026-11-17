@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import { DOC_KINDS, fmtDateTime, label } from '@/lib/constants';
 import type { BookingDoc } from '@/lib/types';
 import { useToast } from './Toast';
+import { uploadLabel, useLeaveWarning } from './useLeaveWarning';
 
 const MAX = 4 * 1024 * 1024;
 const fmtSize = (n: number) => (n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
@@ -45,6 +46,8 @@ export function DocumentsPanel({ model, id, docs: initial, travellers, defaultKi
   const [kind, setKind] = useState(defaultKind);
   const [trav, setTrav] = useState('');
   const [busy, setBusy] = useState(false);
+  const [chosen, setChosen] = useState<File | null>(null);
+  useLeaveWarning(!!chosen);
   const input = useRef<HTMLInputElement>(null);
   const toast = useToast();
   const base = `/api/attachments/${model}/${id}`;
@@ -59,7 +62,7 @@ export function DocumentsPanel({ model, id, docs: initial, travellers, defaultKi
     const f = input.current?.files?.[0];
     if (!f) return toast('Choose a file to attach.', 'err');
     setBusy(true);
-    try { done(await uploadDoc(model, id, f, kind, trav)); if (input.current) input.current.value = ''; toast(`${f.name} attached.`); }
+    try { done(await uploadDoc(model, id, f, kind, trav)); if (input.current) input.current.value = ''; setChosen(null); toast(`${f.name} attached.`); }
     catch (e) { toast((e as Error).message, 'err'); } finally { setBusy(false); }
   }
   async function share(d: BookingDoc, on: boolean) {
@@ -106,8 +109,9 @@ export function DocumentsPanel({ model, id, docs: initial, travellers, defaultKi
           <select id="doc-trav" value={trav} onChange={(e) => setTrav(e.target.value)}><option value="">Whole booking</option>{travellers.map((t) => <option key={t} value={t}>{t}</option>)}</select>
         </>}
         <label className="sr" htmlFor={`doc-file-${model}`}>File</label>
-        <input ref={input} id={`doc-file-${model}`} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="filein" />
-        <button className="btn primary" onClick={attach} disabled={busy}>{busy ? 'Uploading…' : 'Attach'}</button>
+        <input ref={input} id={`doc-file-${model}`} type="file" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" className="filein" onChange={(e) => setChosen(e.target.files?.[0] ?? null)} />
+        <button className={`btn primary ${chosen ? 'ready' : ''}`} onClick={attach} disabled={busy || !chosen}>{busy ? 'Uploading…' : uploadLabel(chosen, 'Attach')}</button>
+        {chosen && !busy && <span className="pending">Not uploaded yet</span>}
       </div>
       <p className="hint">Images or PDFs up to 4 MB; large photos are shrunk automatically. Files are stored privately and open only for signed-in users.{showPortal ? ' Untick Shown to keep a file out of the portal.' : ''}</p>
     </section>
