@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { notifyRequest } from '@/lib/notify';
 import { db } from '@/lib/db';
 import { handle, HttpError } from '@/lib/api';
 import { addMessage, leadFromRequest, nextRequestRef, requirePortal, toRequest } from '@/lib/portal';
@@ -30,6 +31,7 @@ export async function POST(req: Request) {
     await addMessage(id, 'system', '', 'Request submitted.');
     await logActivity('request', id, `${ctx.name}, ${ctx.contactName}`, 'Submitted from the portal.');
     await leadFromRequest(id, 'Portal');
+    notifyRequest(id, 'new');
     const doc = await (await db()).collection('requests').findOne({ _id: r.insertedId });
     if (!doc) throw new HttpError(500, 'Something went wrong. Try again.');
     return toRequest(doc);

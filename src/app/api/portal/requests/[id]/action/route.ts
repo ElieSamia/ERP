@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { notifyRequest } from '@/lib/notify';
 import { db } from '@/lib/db';
 import { handle, HttpError, oid } from '@/lib/api';
 import { addMessage, bookFromRequest, getPortalSettings, getRequestDoc, requirePortal, syncLead, toRequest } from '@/lib/portal';
@@ -24,10 +25,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (!OPEN_REQ.includes(r.status)) throw new HttpError(409, 'This request is closed. Send a new request instead.');
       await addMessage(id, 'customer', who, text);
       await logActivity('request', id, who, 'Message from the customer.');
+      notifyRequest(id, 'customer-message', ctx.name);
     } else if (action === 'cancel') {
       if (p.requests !== 'create' || !OPEN_REQ.includes(r.status)) throw new HttpError(409, 'This request can’t be cancelled.');
       await col.updateOne({ _id: oid(id) }, { $set: { status: 'cancelled' } });
       await addMessage(id, 'system', '', `Request cancelled by ${ctx.name}.`);
+      notifyRequest(id, 'cancelled', ctx.name);
     } else if (action === 'accept' || action === 'decline') {
       if (r.status !== 'quoted' || !r.quote) throw new HttpError(409, 'There’s no quote waiting for an answer.');
       if (p.acceptQuotes !== 'yes') throw new HttpError(403, 'Your access doesn’t include accepting quotes.');
@@ -36,13 +39,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         await col.updateOne({ _id: oid(id) }, { $set: { status: 'review' } });
         await addMessage(id, 'system', '', `Quote declined by ${ctx.name}.${text ? ' ' : ''}`);
         if (text) await addMessage(id, 'customer', who, text);
+        notifyRequest(id, 'quote-declined', ctx.name);
       } else if (p.approveQuotes !== 'yes' && p.approvalLimit > 0 && Number(r.quote.amount) > p.approvalLimit) {
         await col.updateOne({ _id: oid(id) }, { $set: { status: 'approval', approvalBy: ctx.name } });
         await addMessage(id, 'system', '', `Quote accepted by ${ctx.name}. Waiting for approval because it’s above their ${money(p.approvalLimit)} limit.`);
+        notifyRequest(id, 'needs-approval', ctx.name);
       } else {
         await col.updateOne({ _id: oid(id) }, { $set: { status: 'accepted' } });
         await addMessage(id, 'system', '', `Quote accepted by ${ctx.name}.`);
         if ((await getPortalSettings()).autoBook === 'yes') await bookFromRequest(id, who);
+        notifyRequest(id, 'quote-accepted', ctx.name);
       }
       await logActivity('request', id, who, `Quote ${action === 'accept' ? 'accepted' : 'declined'} in the portal.`);
     } else {
@@ -52,10 +58,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         await col.updateOne({ _id: oid(id) }, { $set: { status: 'review' }, $unset: { approvalBy: '' } });
         await addMessage(id, 'system', '', `Not approved by ${ctx.name}.`);
         if (text) await addMessage(id, 'customer', who, text);
+        notifyRequest(id, 'not-approved', ctx.name);
       } else {
         await col.updateOne({ _id: oid(id) }, { $set: { status: 'accepted' } });
         await addMessage(id, 'system', '', `Quote approved by ${ctx.name}.`);
         if ((await getPortalSettings()).autoBook === 'yes') await bookFromRequest(id, who);
+        notifyRequest(id, 'approved', ctx.name);
       }
       await logActivity('request', id, who, action === 'approve' ? 'Quote approved in the portal.' : 'Quote not approved in the portal.');
     }

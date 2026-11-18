@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { notifyOrder } from '@/lib/notify';
 import { db } from '@/lib/db';
 import { handle, HttpError, oid, requireUser } from '@/lib/api';
 import { docTotals, getPurchase } from '@/lib/finance';
@@ -45,6 +46,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     // What the supplier sees in their portal thread.
     const told: Record<string, string> = { confirm: 'Order sent to you.', bill: 'Your bill was recorded.', cancel: 'Order cancelled by us.' };
     if (told[body.action]) await addOrderMessage(id, 'system', '', told[body.action]);
+    if (body.action === 'confirm') notifyOrder(id, 'sent');
+    if (body.action === 'cancel') notifyOrder(id, 'cancelled');
     return getPurchase(id);
   });
 }

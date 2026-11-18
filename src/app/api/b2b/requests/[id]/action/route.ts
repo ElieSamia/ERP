@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { notifyRequest } from '@/lib/notify';
 import { db } from '@/lib/db';
 import { handle, HttpError, oid, requireUser } from '@/lib/api';
 import { addMessage, bookFromRequest, getPortalSettings, getRequestDoc, requestWithNames, syncLead, toRequest } from '@/lib/portal';
@@ -26,6 +27,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (body.action === 'message') {
       await addMessage(id, 'staff', user.name, body.text);
       await logActivity('request', id, user.name, 'Message sent to the customer.');
+      notifyRequest(id, 'staff-message');
     } else if (body.action === 'review') {
       if (r.status !== 'submitted') throw new HttpError(409, 'Only new requests can start review.');
       await col.updateOne({ _id: oid(id) }, { $set: { status: 'review' } });
@@ -38,15 +40,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       await col.updateOne({ _id: oid(id) }, { $set: { status: 'quoted', quote: { amount: body.amount, validUntil, notes: body.notes, sentAt: todayISO() } }, $unset: { approvalBy: '' } });
       await addMessage(id, 'system', '', `Quote sent: ${money(body.amount)}, valid until ${fmtDate(validUntil)}.`);
       await logActivity('request', id, user.name, `Quote of ${money(body.amount)} sent.`);
+      notifyRequest(id, 'quote');
     } else if (body.action === 'decline') {
       if (!open) throw new HttpError(409, 'This request is already closed.');
       await col.updateOne({ _id: oid(id) }, { $set: { status: 'declined' } });
       await addMessage(id, 'staff', user.name, body.reason);
       await addMessage(id, 'system', '', 'Request declined.');
       await logActivity('request', id, user.name, 'Declined.');
+      notifyRequest(id, 'declined-by-us');
     } else {
       if (!['review', 'quoted', 'approval', 'accepted'].includes(r.status)) throw new HttpError(409, 'Start the review first, or the request is closed.');
       await bookFromRequest(id, user.name);
+      notifyRequest(id, 'booked');
     }
     await syncLead(id, user.name);
     return requestWithNames(toRequest((await getRequestDoc(id))!));

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { notifyOrder } from '@/lib/notify';
 import { handle, HttpError, requireUser } from '@/lib/api';
 import { addOrderMessage } from '@/lib/portal';
 import { getPurchase } from '@/lib/finance';
@@ -13,6 +14,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (!(await getPurchase(id))) throw new HttpError(404, 'Order not found.');
     await addOrderMessage(id, 'staff', user.name, text);
     await logActivity('purchase', id, user.name, 'Message sent to the supplier.');
+    notifyOrder(id, 'staff-message');
     return getPurchase(id);
   });
 }

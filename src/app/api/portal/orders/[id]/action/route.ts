@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { notifyOrder } from '@/lib/notify';
 import { db } from '@/lib/db';
 import { handle, HttpError, oid } from '@/lib/api';
 import { addOrderMessage, requirePortal, supplierOrder } from '@/lib/portal';
@@ -26,9 +27,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       await addOrderMessage(id, 'system', '', `Confirmed by ${ctx.name}${body.ref ? `, their reference ${body.ref}` : ''}.`);
       if (body.text) await addOrderMessage(id, 'customer', who, body.text);
       await logActivity('purchase', id, who, `Order confirmed in the supplier portal${body.ref ? ` (reference ${body.ref})` : ''}.`);
+      notifyOrder(id, 'supplier-confirmed', ctx.name);
     } else {
       await addOrderMessage(id, 'customer', who, body.text);
       await logActivity('purchase', id, who, 'Message from the supplier.');
+      notifyOrder(id, 'supplier-message', ctx.name);
     }
     return getPurchase(id);
   });

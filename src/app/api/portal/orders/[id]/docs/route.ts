@@ -1,4 +1,5 @@
 import { handle, HttpError } from '@/lib/api';
+import { notifyOrder } from '@/lib/notify';
 import { addOrderMessage, requirePortal, supplierOrder } from '@/lib/portal';
 import { attach, readForm } from '@/lib/attachments';
 import { getPurchase } from '@/lib/finance';
@@ -25,6 +26,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const docs = await attach('purchase', id, form, who, { fromPortal: true });
     const doc = docs.at(-1)!;
     await addOrderMessage(id, 'system', '', `${label(DOC_KINDS, kind)} uploaded by ${ctx.name}: ${doc.name}.`);
+    notifyOrder(id, 'supplier-file', ctx.name);
     return getPurchase(id);
   });
 }

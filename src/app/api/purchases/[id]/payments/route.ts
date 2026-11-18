@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { notifyOrder } from '@/lib/notify';
 import { db } from '@/lib/db';
 import { handle, HttpError, oid, requireUser } from '@/lib/api';
 import { paymentSchema } from '@/lib/schemas';
@@ -25,6 +26,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const acc = fin.accounts.find((a) => a.id === p.accountId)?.name;
     await logActivity('purchase', id, user.name, `Paid ${money(p.amount)} from ${acc}, voucher ${pay.ref}.${paid ? ' Fully paid.' : ''}`);
     await addOrderMessage(id, 'system', '', `Payment ${pay.ref} of ${money(p.amount)} made.${paid ? ' This order is fully paid.' : ''}`);
+    notifyOrder(id, 'paid');
     return { purchase: await getPurchase(id), paymentId: pay.id };
   });
 }

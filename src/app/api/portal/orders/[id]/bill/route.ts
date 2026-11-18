@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { notifyOrder } from '@/lib/notify';
 import { db } from '@/lib/db';
 import { handle, HttpError, oid } from '@/lib/api';
 import { addOrderMessage, requirePortal, supplierOrder } from '@/lib/portal';
@@ -29,6 +30,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const doc = docs.at(-1)!;
     await (await db()).collection('purchases').updateOne({ _id: oid(id) }, { $set: { supplierBill: { ref: f.billRef, date: f.billDate, amount: f.amount, docId: doc.id, at: new Date(), by: who } } });
     await addOrderMessage(id, 'system', '', `Bill ${f.billRef} for ${money(f.amount)} uploaded by ${ctx.name}. Waiting for our accounts team to record it.`);
+    notifyOrder(id, 'supplier-bill', ctx.name);
     return getPurchase(id);
   });
 }
