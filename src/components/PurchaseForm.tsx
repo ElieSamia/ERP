@@ -18,7 +18,7 @@ type Draft = Pick<Purchase, 'supplierId' | 'orderDate' | 'billRef' | 'billDate' 
 const pick = (p: Purchase): Draft => ({ supplierId: p.supplierId, orderDate: p.orderDate, billRef: p.billRef, billDate: p.billDate, lines: p.lines, notes: p.notes });
 const EMPTY: Draft = { supplierId: '', orderDate: todayISO(), billRef: '', billDate: '', lines: [], notes: '' };
 
-export function PurchaseForm({ initial, finance, suppliers }: { initial?: Purchase; finance: Finance; suppliers: Option[] }) {
+export function PurchaseForm({ initial, finance, suppliers, supplierPortal = false }: { initial?: Purchase; finance: Finance; suppliers: Option[]; supplierPortal?: boolean }) {
   const router = useRouter();
   const toast = useToast();
   const [po, setPo] = useState(initial);
@@ -112,14 +112,14 @@ export function PurchaseForm({ initial, finance, suppliers }: { initial?: Purcha
               <h2>Supplier portal</h2>
               <p style={{ margin: '0 0 8px' }}>{po.supplierAck
                 ? <><span className="badge b-green">Confirmed by the supplier</span> {po.supplierAck.by}, {fmtDate(po.supplierAck.at.slice(0, 10))}{po.supplierAck.ref && <>, their reference <b>{po.supplierAck.ref}</b></>}</>
-                : <span className="badge b-amber">Not confirmed by the supplier yet</span>}</p>
+                : supplierPortal ? <span className="badge b-amber">Not confirmed by the supplier yet</span> : <span className="badge">This supplier doesn’t use the portal</span>}</p>
               {po.supplierBill && (
                 <p className="banner" style={{ margin: '8px 0' }}>
                   The supplier uploaded bill <b>{po.supplierBill.ref}</b> of {fmtDate(po.supplierBill.date)} for <b>{money(po.supplierBill.amount)}</b>{Math.abs(po.supplierBill.amount - t.total) > 0.009 ? `, which differs from the order total of ${money(t.total)}` : ''}. It’s under Supplier documents.
                   {status === 'confirmed' && <> <button className="btn" onClick={() => setBill({ billRef: po.supplierBill!.ref, billDate: po.supplierBill!.date })}>Record this bill</button></>}
                 </p>
               )}
-              <p className="hint" style={{ margin: 0 }}>Suppliers with portal access see confirmed orders, can confirm them, write to you and upload their bill.</p>
+              <p className="hint" style={{ margin: 0 }}>{supplierPortal ? 'Suppliers with portal access see confirmed orders, can confirm them, write to you and upload their bill. Their confirmation is for your information only.' : 'Work with this supplier by email or phone as usual, and send the order with Print, then Share by email. To let them confirm orders and upload bills themselves, give their contact portal access and invite them.'}</p>
             </section>
           )}
           {po && <Thread messages={po.thread} mine="staff" canWrite={status !== 'draft'} placeholder="Write to the supplier"

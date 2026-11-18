@@ -5,7 +5,7 @@ import { fmtDateTime } from '@/lib/constants';
 import type { MailSettings as MS } from '@/lib/mail';
 import { useToast } from './Toast';
 
-type Log = { id: string; at: string; to: string; subject: string; kind: string; status: string; error: string }[];
+type Log = { id: string; at: string; to: string; subject: string; kind: string; status: string; error: string; canResend?: boolean; resent?: boolean }[];
 type Draft = Omit<MS, 'hasPassword'> & { password: string };
 const pick = (s: MS): Draft => ({ enabled: s.enabled, host: s.host, port: s.port, secure: s.secure, user: s.user, fromName: s.fromName, fromEmail: s.fromEmail, replyTo: s.replyTo, notifyTo: s.notifyTo, appUrl: s.appUrl, password: '' });
 
@@ -15,7 +15,18 @@ export function MailSettings({ initial, log: initialLog, meEmail }: { initial: M
   const [log, setLog] = useState(initialLog);
   const [to, setTo] = useState(meEmail);
   const [busy, setBusy] = useState('');
+  const [failedOnly, setFailedOnly] = useState(false);
   const toast = useToast();
+  async function load(onlyFailed: boolean) {
+    setFailedOnly(onlyFailed);
+    const r = await api<{ log: Log }>(`/api/settings/mail${onlyFailed ? '?failed=1' : ''}`).catch(() => null);
+    if (r) setLog(r.log);
+  }
+  async function resend(id: string) {
+    setBusy(id);
+    try { const r = await api<{ log: Log }>('/api/settings/mail/resend', 'POST', { id, failedOnly }); setLog(r.log); toast('Email resent.'); }
+    catch (e) { toast((e as Error).message, 'err'); } finally { setBusy(''); }
+  }
   const dirty = JSON.stringify(f) !== JSON.stringify(pick(s));
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setF({ ...f, [k]: v });
   async function save() {
@@ -57,13 +68,14 @@ export function MailSettings({ initial, log: initialLog, meEmail }: { initial: M
         <input id="m-to" className="sel" value={to} onChange={(e) => setTo(e.target.value)} placeholder="you@example.com" />
         <button className="btn" onClick={test} disabled={busy !== '' || !s.enabled}>{busy === 'test' ? 'Sending…' : 'Send a test email'}</button>
       </div>
-      <h3 className="sub3">Recent emails</h3>
-      {log.length === 0 ? <p className="muted" style={{ margin: 0 }}>No emails yet.</p> : (
+      <div className="cp" style={{ margin: '16px 0 6px' }}><h3 className="sub3" style={{ margin: 0 }}>Recent emails</h3>
+        <div className="chips"><button className={`chip ${!failedOnly ? 'on' : ''}`} onClick={() => load(false)}>All</button><button className={`chip ${failedOnly ? 'on' : ''}`} onClick={() => load(true)}>Failed only</button></div></div>
+      {log.length === 0 ? <p className="muted" style={{ margin: 0 }}>{failedOnly ? 'No failed emails.' : 'No emails yet.'}</p> : (
         <div className="table-wrap"><table className="lines">
           <thead><tr><th>When</th><th>To</th><th>Subject</th><th>Result</th></tr></thead>
           <tbody>{log.map((e) => (
             <tr key={e.id}><td style={{ whiteSpace: 'nowrap' }}>{fmtDateTime(e.at)}</td><td>{e.to}</td><td>{e.subject}</td>
-              <td>{e.status === 'sent' ? <span className="badge b-green">Sent</span> : e.status === 'failed' ? <><span className="badge b-red">Failed</span><span className="muted" style={{ display: 'block', fontSize: 12.5 }}>{e.error}</span></> : <span className="badge" title={e.error}>Not sent</span>}</td></tr>))}
+              <td>{e.status === 'sent' ? <span className="badge b-green">Sent</span> : e.status === 'failed' ? <><span className="badge b-red">Failed</span>{e.resent && <span className="badge b-green" style={{ marginLeft: 4 }}>Resent</span>}<span className="muted" style={{ display: 'block', fontSize: 12.5 }}>{e.error}</span>{e.canResend && <button className="btn" style={{ marginTop: 4 }} onClick={() => resend(e.id)} disabled={busy !== ''}>{busy === e.id ? 'Sending…' : 'Resend'}</button>}</> : <span className="badge" title={e.error}>Not sent</span>}</td></tr>))}
           </tbody></table></div>
       )}
     </section>

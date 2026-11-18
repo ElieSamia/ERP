@@ -203,3 +203,24 @@ export const reminderSchema = z.object({
   title: z.string().trim().min(1, 'Write what to remember.').max(160),
   note: z.string().trim().max(2000).default(''),
 });
+
+/* ---------- Marketing ---------- */
+export const filterSchema = z.object({
+  types: z.array(z.enum(['customer', 'agency', 'corporate'])).min(1, 'Choose at least one type of contact.'),
+  country: z.string().trim().max(80).default(''), city: z.string().trim().max(80).default(''), destination: z.string().trim().max(80).default(''),
+  booked: z.enum(['', 'within', 'not-within']).default(''), months: z.coerce.number().int().min(1).max(120).default(12),
+  minSpent: z.coerce.number().min(0).default(0), portal: z.enum(['', 'yes', 'no']).default(''),
+});
+export const audienceSchema = z.object({ name: z.string().trim().min(1, 'Name the audience.').max(100), desc: z.string().trim().max(300).default(''), filter: filterSchema });
+
+export const campaignSchema = z.object({
+  name: z.string().trim().min(1, 'Name the campaign.').max(120),
+  subject: z.string().trim().max(150).default(''),
+  preheader: z.string().trim().max(150).default(''),
+  heading: z.string().trim().max(150).default(''),
+  body: z.string().trim().max(20000).default(''),
+  imageUrl: z.string().trim().max(500).refine((v) => !v || /^https:\/\//.test(v), 'Use an image address starting with https://').default(''),
+  buttonText: z.string().trim().max(60).default(''),
+  buttonUrl: z.string().trim().max(500).refine((v) => !v || /^https?:\/\//.test(v), 'Use a link starting with https://').default(''),
+  audienceId: z.string().max(40).default(''),
+});

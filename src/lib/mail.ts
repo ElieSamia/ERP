@@ -20,7 +20,7 @@ export function encrypt(text: string) {
   const enc = Buffer.concat([c.update(text, 'utf8'), c.final()]);
   return [iv, c.getAuthTag(), enc].map((b) => b.toString('base64')).join('.');
 }
-function decrypt(s: string) {
+export function decrypt(s: string) {
   const [iv, tag, enc] = s.split('.').map((x) => Buffer.from(x, 'base64'));
   const d = createDecipheriv('aes-256-gcm', key(), iv);
   d.setAuthTag(tag);
@@ -68,8 +68,8 @@ export async function layout(o: { heading: string; paragraphs: string[]; button?
   const font = "font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
   const body = o.paragraphs.map((p) => `<p style="margin:0 0 14px;${font};font-size:15px;line-height:1.55;color:#17201f">${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
   const btn = o.button ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0 16px"><tr>`
-    + `<td bgcolor="#0F6E66" style="background:#0F6E66;border-radius:8px;padding:11px 20px">`
-    + `<a href="${esc(o.button.url)}" target="_blank" style="${font};font-size:15px;font-weight:600;line-height:20px;color:#ffffff;text-decoration:none"><span style="color:#ffffff">${esc(o.button.text)}</span></a>`
+    + `<td bgcolor="#0F6E66" style="background:#0F6E66;border-radius:8px;padding:11px 20px;mso-line-height-rule:exactly;line-height:20px">`
+    + `<a href="${esc(o.button.url)}" target="_blank" style="${font};font-size:15px;font-weight:600;line-height:20px;mso-line-height-rule:exactly;color:#ffffff;text-decoration:none"><span style="color:#ffffff">${esc(o.button.text)}</span></a>`
     + `</td></tr></table>`
     + `<p style="margin:0;${font};font-size:13px;line-height:1.5;color:#5b6b6a">If the button doesn’t work, copy this address into your browser:<br><a href="${esc(o.button.url)}" style="color:#0F6E66;word-break:break-all">${esc(o.button.url)}</a></p>` : '';
   const foot = `${esc(company.name || '')}${company.phone ? ` · ${esc(company.phone)}` : ''}${company.email ? ` · ${esc(company.email)}` : ''}${o.footer ? `<br>${esc(o.footer)}` : ''}`;
@@ -95,7 +95,9 @@ export type MailResult = { sent: boolean; error?: string };
 export async function sendMail(m: { to: string | string[]; subject: string; html: string; text: string; kind: string; ref?: { model: string; id: string }; replyTo?: string }): Promise<MailResult> {
   const to = (Array.isArray(m.to) ? m.to : [m.to]).map((x) => x.trim()).filter(Boolean);
   const log = async (status: 'sent' | 'failed' | 'skipped', error?: string) => {
-    await (await db()).collection('emails').insertOne({ at: new Date(), to, subject: m.subject, kind: m.kind, ref: m.ref ?? null, status, error: error ?? null }).catch(() => null);
+    // A failed email keeps its content, so it can be resent from the log once the problem is fixed.
+    const keep = status === 'failed' ? { html: m.html, text: m.text, replyTo: m.replyTo ?? null } : {};
+    await (await db()).collection('emails').insertOne({ at: new Date(), to, subject: m.subject, kind: m.kind, ref: m.ref ?? null, status, error: error ?? null, ...keep }).catch(() => null);
   };
   if (!to.length) return { sent: false, error: 'No email address.' };
   const s = await stored();
@@ -119,9 +121,21 @@ export async function sendMail(m: { to: string | string[]; subject: string; html
   }
 }
 
-export async function recentEmails(limit = 25) {
-  const list = await (await db()).collection('emails').find({}).sort({ at: -1 }).limit(limit).toArray();
-  return list.map((e) => ({ id: String(e._id), at: (e.at as Date).toISOString(), to: (e.to as string[]).join(', '), subject: String(e.subject), kind: String(e.kind), status: String(e.status), error: e.error ? String(e.error) : '' }));
+export async function recentEmails(limit = 25, onlyFailed = false) {
+  const list = await (await db()).collection('emails').find(onlyFailed ? { status: 'failed' } : {}).sort({ at: -1 }).limit(limit).toArray();
+  return list.map((e) => ({ id: String(e._id), at: (e.at as Date).toISOString(), to: (e.to as string[]).join(', '), subject: String(e.subject), kind: String(e.kind), status: String(e.status), error: e.error ? String(e.error) : '', canResend: e.status === 'failed' && !!e.html && !e.resentAt, resent: !!e.resentAt }));
+}
+
+/** Sends a failed email again, exactly as it was, and marks the old entry so it isn't resent twice. */
+export async function resendEmail(id: string) {
+  const { ObjectId } = await import('mongodb');
+  const col = (await db()).collection('emails');
+  const e = ObjectId.isValid(id) ? await col.findOne({ _id: new ObjectId(id) }) : null;
+  if (!e || e.status !== 'failed' || !e.html) return { sent: false, error: 'This email can’t be resent.' } as MailResult;
+  if (e.resentAt) return { sent: false, error: 'It was already resent.' } as MailResult;
+  const r = await sendMail({ to: e.to as string[], subject: String(e.subject), html: String(e.html), text: String(e.text || ''), kind: String(e.kind), ref: e.ref ?? undefined, replyTo: e.replyTo ?? undefined });
+  if (r.sent) await col.updateOne({ _id: e._id }, { $set: { resentAt: new Date() } });
+  return r;
 }
 
 /** The invitation or new-password email for a portal user. Awaited, so the screen can say whether it went out. */

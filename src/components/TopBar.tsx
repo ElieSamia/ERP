@@ -15,6 +15,7 @@ export const MODULES = [
   { href: '/b2b', name: 'B2B portal' },
   { href: '/products', name: 'Products' },
   { href: '/reports', name: 'Reports' },
+  { href: '/marketing', name: 'Marketing' },
   { href: '/contacts', name: 'Contacts' },
   { href: '/settings', name: 'Settings' },
 ];

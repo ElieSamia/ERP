@@ -14,14 +14,14 @@ type ShareTarget = { kind: DocKind; id: string; pid?: string; prices?: boolean }
 type Created = { url: string; token: string; until: string; title: string; number: string; company: string; mailReady: boolean; party: { name: string; email: string; phone: string } };
 
 const TEMPLATES: Record<DocKind, { subject: string; body: string }> = {
-  confirm: { subject: 'Your booking confirmation {number}', body: 'Dear {name},\n\nYour booking confirmation {number} is ready:\n{link}\n\nPlease check the names and dates against the passports and let us know if anything needs changing.\n\nKind regards,\n{company}' },
-  vouchers: { subject: 'Hotel vouchers for booking {number}', body: 'Dear {name},\n\nYour hotel vouchers for booking {number} are ready:\n{link}\n\nPlease show them at check-in.\n\nHave a great trip,\n{company}' },
-  invoice: { subject: 'Invoice {number} from {company}', body: 'Dear {name},\n\nPlease find your invoice {number} here:\n{link}\n\nKind regards,\n{company}' },
-  receipt: { subject: 'Payment receipt {number}', body: 'Dear {name},\n\nThank you for your payment. Your receipt {number} is here:\n{link}\n\nKind regards,\n{company}' },
-  po: { subject: 'Purchase order {number} from {company}', body: 'Hello,\n\nPlease find our purchase order {number} here:\n{link}\n\nKindly confirm availability.\n\nRegards,\n{company}' },
-  statement: { subject: 'Statement of account from {company}', body: 'Dear {name},\n\nYour statement of account is here:\n{link}\n\nKind regards,\n{company}' },
-  supstatement: { subject: 'Statement from {company}', body: 'Hello,\n\nHere is your statement with us, showing your bills, our payments and what is still owed:\n{link}\n\nRegards,\n{company}' },
-  voucher: { subject: 'Payment {number} from {company}', body: 'Hello,\n\nPlease find the payment voucher {number} here:\n{link}\n\nRegards,\n{company}' },
+  confirm: { subject: 'Your booking confirmation {number}', body: 'Dear {name},\n\nYour booking confirmation {number} is ready:\n{link}\n\nPlease check the names and dates against the passports and let us know if anything needs changing.\n\nThe link works until {until}.\n\nKind regards,\n{company}' },
+  vouchers: { subject: 'Hotel vouchers for booking {number}', body: 'Dear {name},\n\nYour hotel vouchers for booking {number} are ready:\n{link}\n\nPlease show them at check-in.\n\nThe link works until {until}.\n\nHave a great trip,\n{company}' },
+  invoice: { subject: 'Invoice {number} from {company}', body: 'Dear {name},\n\nPlease find your invoice {number} here:\n{link}\n\nThe link works until {until}.\n\nKind regards,\n{company}' },
+  receipt: { subject: 'Payment receipt {number}', body: 'Dear {name},\n\nThank you for your payment. Your receipt {number} is here:\n{link}\n\nThe link works until {until}.\n\nKind regards,\n{company}' },
+  po: { subject: 'Purchase order {number} from {company}', body: 'Hello,\n\nPlease find our purchase order {number} here:\n{link}\n\nKindly confirm availability.\n\nThe link works until {until}.\n\nRegards,\n{company}' },
+  statement: { subject: 'Statement of account from {company}', body: 'Dear {name},\n\nYour statement of account is here:\n{link}\n\nThe link works until {until}.\n\nKind regards,\n{company}' },
+  supstatement: { subject: 'Statement from {company}', body: 'Hello,\n\nHere is your statement with us, showing your bills, our payments and what is still owed:\n{link}\n\nThe link works until {until}.\n\nRegards,\n{company}' },
+  voucher: { subject: 'Payment {number} from {company}', body: 'Hello,\n\nPlease find the payment voucher {number} here:\n{link}\n\nThe link works until {until}.\n\nRegards,\n{company}' },
 };
 const fill = (s: string, m: Record<string, string>) => s.replace(/\{(\w+)\}/g, (x, k) => m[k] ?? x);
 const waNumber = (p: string) => p.replace(/[^\d]/g, '').replace(/^00/, '');
@@ -40,9 +40,9 @@ function ShareDialog({ target, channel, onClose }: { target: ShareTarget; channe
     asked.current = true;
     api<Created>('/api/share', 'POST', target).then((r) => {
       const t = TEMPLATES[target.kind];
-      const m = { name: r.party.name.split(' ')[0] || r.party.name, number: r.number, company: r.company, link: r.url };
+      const m = { name: r.party.name.split(' ')[0] || r.party.name, number: r.number, company: r.company, link: r.url, until: r.until };
       setC(r); setTo(channel === 'email' ? r.party.email : r.party.phone);
-      setSubject(fill(t.subject, m)); setBody(`${fill(t.body, m)}\n\nThe link works until ${r.until}.`);
+      setSubject(fill(t.subject, m)); setBody(fill(t.body, m));
     }).catch((e) => setErr((e as Error).message));
   }, [target, channel]);
   const log = (ch: 'email' | 'whatsapp' | 'copy') => c && api(`/api/share/${c.token}`, 'PATCH', { channel: ch, to }).catch(() => null);

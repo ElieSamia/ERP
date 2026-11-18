@@ -11,7 +11,7 @@ import { useToast } from './Toast';
 
 const EMPTY: Omit<Contact, 'id'> = { name: '', type: 'customer', email: '', phone: '', city: '', country: 'Lebanon', creditLimit: 0, marketing: 'yes', portalAccess: 'no', notes: '' };
 
-export function ContactForm({ initial }: { initial?: Contact }) {
+export function ContactForm({ initial, portalUsers }: { initial?: Contact; portalUsers?: number }) {
   const router = useRouter();
   const toast = useToast();
   const [saved, setSaved] = useState<Omit<Contact, 'id'>>(initial ?? EMPTY);
@@ -47,13 +47,16 @@ export function ContactForm({ initial }: { initial?: Contact }) {
           {dirty && <span className="dirty">Unsaved changes</span>}
           <button className="btn primary" onClick={save} disabled={busy || (!!initial && !dirty)}>{busy ? 'Saving…' : 'Save'}</button>
           {initial ? (dirty && <button className="btn" onClick={() => setC(saved)}>Discard</button>) : <Link className="btn" href="/contacts">Cancel</Link>}
-          {initial && saved.portalAccess === 'yes' && saved.type !== 'supplier' && <Link className="btn" href={`/b2b/accounts/${initial.id}`}>Portal users</Link>}
+          {initial && saved.portalAccess === 'yes' && <Link className="btn" href={`/b2b/accounts/${initial.id}`}>Portal users</Link>}
           {initial && saved.type !== 'supplier' && <a className="btn" href={`/print/statement/${initial.id}`} target="_blank" rel="noopener">Statement</a>}
           {initial && <button className="btn ghost" onClick={remove}>Delete</button>}
         </div>
       </div>
       <div className="recpage">
         <div className="recmain">
+          {initial && saved.portalAccess === 'yes' && portalUsers === 0 && (
+            <p className="banner">Portal access is on, but nobody can sign in yet. <Link href={`/b2b/accounts/${initial.id}`}>Invite someone</Link> so they can use the portal and receive its emails.</p>
+          )}
           <section className="sheet">
             <div className="grid">
               <TextField id="f-name" label="Name" wide value={c.name} onChange={(v) => set('name', v)} />
