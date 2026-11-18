@@ -4,13 +4,14 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/client';
 import type { DocKind } from '@/lib/constants';
 import { Modal } from './Modal';
+import { useToast } from './Toast';
 
 export function PrintButton() {
   return <button className="btn primary" onClick={() => window.print()}>Print or save as PDF</button>;
 }
 
 type ShareTarget = { kind: DocKind; id: string; pid?: string; prices?: boolean };
-type Created = { url: string; token: string; until: string; title: string; number: string; company: string; party: { name: string; email: string; phone: string } };
+type Created = { url: string; token: string; until: string; title: string; number: string; company: string; mailReady: boolean; party: { name: string; email: string; phone: string } };
 
 const TEMPLATES: Record<DocKind, { subject: string; body: string }> = {
   confirm: { subject: 'Your booking confirmation {number}', body: 'Dear {name},\n\nYour booking confirmation {number} is ready:\n{link}\n\nPlease check the names and dates against the passports and let us know if anything needs changing.\n\nKind regards,\n{company}' },
@@ -45,6 +46,14 @@ function ShareDialog({ target, channel, onClose }: { target: ShareTarget; channe
     }).catch((e) => setErr((e as Error).message));
   }, [target, channel]);
   const log = (ch: 'email' | 'whatsapp' | 'copy') => c && api(`/api/share/${c.token}`, 'PATCH', { channel: ch, to }).catch(() => null);
+  const [sending, setSending] = useState(false);
+  const toast = useToast();
+  async function sendNow() {
+    if (!c) return;
+    setSending(true);
+    try { await api(`/api/share/${c.token}/send`, 'POST', { to, subject, body }); toast(`Sent to ${to}.`); onClose(); }
+    catch (e) { toast((e as Error).message, 'err'); } finally { setSending(false); }
+  }
   function open() {
     if (!c) return;
     if (channel === 'email') window.location.href = `mailto:${encodeURIComponent(to.trim())}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
@@ -78,13 +87,16 @@ function ShareDialog({ target, channel, onClose }: { target: ShareTarget; channe
             <div className="fld"><span>Link</span><div className="mk"><input readOnly value={c.url} aria-label="Share link" onFocus={(e) => e.target.select()} /><button className="btn" onClick={copy}>{copied ? 'Copied' : 'Copy'}</button></div></div>
           </div>
           <p className="hint">
-            {channel === 'email' ? 'Opens your email app with the message ready, so you can check it and send it from your own address.' : 'Opens WhatsApp with the message ready, on this computer or your phone. Leave the number empty to choose the chat yourself.'}
+            {channel === 'email' ? (c.mailReady ? 'Send now emails it from your company address, and it’s noted on the record. Or open it in your own email app.' : 'Opens your email app with the message ready, so you can check it and send it from your own address.') : 'Opens WhatsApp with the message ready, on this computer or your phone. Leave the number empty to choose the chat yourself.'}
             {' '}The link shows only this document and stops working on {c.until}.
           </p>
           <div className="dlg-actions">
             <button className="btn ghost" onClick={cancelLink}>Cancel link</button>
             <button className="btn" onClick={onClose}>Close</button>
-            <button className="btn primary" onClick={open}>{channel === 'email' ? 'Open in email app' : 'Open WhatsApp'}</button>
+            {channel === 'email' && c.mailReady ? <>
+              <button className="btn" onClick={open}>Open in email app</button>
+              <button className="btn primary" onClick={sendNow} disabled={sending || !to.trim()}>{sending ? 'Sending…' : 'Send now'}</button>
+            </> : <button className="btn primary" onClick={open}>{channel === 'email' ? 'Open in email app' : 'Open WhatsApp'}</button>}
           </div>
         </>
       )}

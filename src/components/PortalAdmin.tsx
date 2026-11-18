@@ -8,13 +8,15 @@ import { Modal } from './Modal';
 import { TextField, TextArea, SelectField, NumberField } from './Fields';
 import { useToast } from './Toast';
 
-function LinkBox({ url, onClose, name }: { url: string; onClose: () => void; name: string }) {
+type Mail = { sent: boolean; error?: string };
+function LinkBox({ url, onClose, name, mail }: { url: string; onClose: () => void; name: string; mail?: Mail }) {
   const [copied, setCopied] = useState(false);
   return (
-    <Modal title="Invitation link" onClose={onClose}>
-      <p style={{ marginTop: 0 }}>Send this link to {name}. It lets them set their own password, works once and expires in 7 days.</p>
+    <Modal title={mail?.sent ? 'Invitation sent' : 'Invitation link'} onClose={onClose}>
+      {mail?.sent
+        ? <p style={{ marginTop: 0 }}><span className="badge b-green">Emailed</span> We emailed {name} a link to set their password. It works once and expires in 7 days. You can also copy it below, for example to send by WhatsApp.</p>
+        : <p style={{ marginTop: 0 }}>Send this link to {name}. It lets them set their own password, works once and expires in 7 days.{mail?.error ? <><br /><span className="muted">Not emailed: {mail.error}</span></> : null}</p>}
       <div className="mk"><input readOnly value={url} aria-label="Invitation link" onFocus={(e) => e.target.select()} /><button className="btn" onClick={async () => { await navigator.clipboard.writeText(url).catch(() => null); setCopied(true); }}>{copied ? 'Copied' : 'Copy'}</button></div>
-      <p className="hint">Send it by email or WhatsApp yourself. Automatic invitation emails come with the email provider in a later phase.</p>
       <div className="dlg-actions"><button className="btn primary" onClick={onClose}>Done</button></div>
     </Modal>
   );
@@ -26,23 +28,23 @@ export function PortalUsersPanel({ contactId, contactName, initial, roles, endpo
 }) {
   const [users, setUsers] = useState(initial);
   const [n, setN] = useState({ name: '', email: '', roleId: roles[0]?.id ?? 'admin' });
-  const [link, setLink] = useState<null | { url: string; name: string }>(null);
+  const [link, setLink] = useState<null | { url: string; name: string; mail?: Mail }>(null);
   const [editing, setEditing] = useState<null | { id: string; name: string; email: string }>(null);
   const toast = useToast();
   const portalSide = endpoint.startsWith('/api/portal');
   async function invite() {
     try {
-      const r = await api<{ users: PortalAccountUser[]; inviteUrl: string }>(endpoint, 'POST', portalSide ? n : { ...n, contactId });
-      setUsers(r.users); setLink({ url: r.inviteUrl, name: n.name }); setN({ name: '', email: '', roleId: n.roleId });
+      const r = await api<{ users: PortalAccountUser[]; inviteUrl: string; mail?: Mail }>(endpoint, 'POST', portalSide ? n : { ...n, contactId });
+      setUsers(r.users); setLink({ url: r.inviteUrl, name: n.name, mail: r.mail }); setN({ name: '', email: '', roleId: n.roleId });
     } catch (e) { toast((e as Error).message, 'err'); }
   }
   async function patch(u: PortalAccountUser, body: Record<string, unknown>) {
     try {
-      if (!portalSide && body.reset) { const r = await api<{ inviteUrl: string }>(`${endpoint}/${u.id}/invite`, 'POST'); setLink({ url: r.inviteUrl, name: u.name }); setUsers(users.map((x) => (x.id === u.id ? { ...x, invited: true } : x))); return; }
-      const r = await api<PortalAccountUser[] | { users: PortalAccountUser[]; inviteUrl?: string }>(`${endpoint}/${u.id}`, 'PATCH', body);
+      if (!portalSide && body.reset) { const r = await api<{ inviteUrl: string; mail?: Mail }>(`${endpoint}/${u.id}/invite`, 'POST'); setLink({ url: r.inviteUrl, name: u.name, mail: r.mail }); setUsers(users.map((x) => (x.id === u.id ? { ...x, invited: true } : x))); return; }
+      const r = await api<PortalAccountUser[] | { users: PortalAccountUser[]; inviteUrl?: string; mail?: Mail }>(`${endpoint}/${u.id}`, 'PATCH', body);
       const list = Array.isArray(r) ? r : r.users;
       setUsers(list);
-      if (!Array.isArray(r) && r.inviteUrl) setLink({ url: r.inviteUrl, name: u.name }); else toast('Updated.');
+      if (!Array.isArray(r) && r.inviteUrl) setLink({ url: r.inviteUrl, name: u.name, mail: r.mail }); else toast('Updated.');
     } catch (e) { toast((e as Error).message, 'err'); }
   }
   const roleOpts = roles.map((r) => [r.id, r.name] as [string, string]);
@@ -74,7 +76,7 @@ export function PortalUsersPanel({ contactId, contactName, initial, roles, endpo
       </div>
       <div className="addrow"><button className="btn primary" onClick={invite}>Create invitation</button></div>
       <p className="hint">Invited people set their own password from the link. Deactivating someone signs them out at once.</p>
-      {link && <LinkBox url={link.url} name={link.name} onClose={() => setLink(null)} />}
+      {link && <LinkBox url={link.url} name={link.name} mail={link.mail} onClose={() => setLink(null)} />}
       {editing && (
         <Modal title="Edit person" onClose={() => setEditing(null)}>
           <div className="grid">

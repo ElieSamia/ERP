@@ -2,10 +2,11 @@
 import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 
-async function post(url: string, body: unknown) {
+async function post<T = unknown>(url: string, body: unknown): Promise<T> {
   const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const d = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error((d as { error?: string }).error || 'Something went wrong. Try again.');
+  return d as T;
 }
 
 export function PortalLoginForm({ company }: { company: string }) {
@@ -13,6 +14,13 @@ export function PortalLoginForm({ company }: { company: string }) {
   const [f, setF] = useState({ email: '', password: '' });
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const [forgot, setForgot] = useState<null | { msg: string }>(null);
+  async function sendReset() {
+    if (!f.email) { setErr('Enter your email address first, then select Forgot your password.'); return; }
+    setBusy(true); setErr('');
+    try { const r = await post<{ ok: boolean; message: string }>('/api/portal/auth/forgot', { email: f.email }); setForgot({ msg: r.message }); }
+    catch (x) { setErr((x as Error).message); } finally { setBusy(false); }
+  }
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setBusy(true); setErr('');
     try { await post('/api/portal/auth/login', f); const n = params.get('next'); window.location.href = n && n.startsWith('/portal') ? n : '/portal'; }
@@ -28,7 +36,8 @@ export function PortalLoginForm({ company }: { company: string }) {
         <label className="fld" htmlFor="password"><span>Password</span><input id="password" type="password" autoComplete="current-password" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} required /></label>
         <button className="btn primary" type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
       </form>
-      <p className="hint">Forgot your password? Ask your account admin or {company} for a new link.</p>
+      {forgot ? <p className="banner" role="status">{forgot.msg}</p>
+        : <p className="hint"><button type="button" className="linkbtn" style={{ padding: 0 }} onClick={sendReset} disabled={busy}>Forgot your password?</button> Enter your email above and we’ll send you a link to choose a new one.</p>}
     </div></div>
   );
 }
