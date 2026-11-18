@@ -272,8 +272,11 @@ export async function inviteUser(contactId: string, data: z.infer<typeof inviteS
   if (await d.collection('portalUsers').findOne({ email: data.email })) throw new HttpError(409, 'A portal user with this email already exists.');
   const inv = newInvite();
   await d.collection('portalUsers').insertOne({ ...data, contactId, active: true, passwordHash: null, inviteHash: inv.hash, inviteExpires: inv.expires, createdAt: new Date(), createdBy: by });
-  await logActivity('contact', contactId, by, `Portal user ${data.name} invited.`);
-  return { users: await listPortalUsers(contactId), inviteUrl: `${origin}/portal/invite/${inv.token}` };
+  const { appUrl, sendInviteEmail } = await import('./mail');
+  const inviteUrl = `${await appUrl(origin)}/portal/invite/${inv.token}`;
+  const mail = await sendInviteEmail({ to: data.email, name: data.name, url: inviteUrl, account: String(c.name) });
+  await logActivity('contact', contactId, by, `Portal user ${data.name} invited.${mail.sent ? ` Invitation emailed to ${data.email}.` : ''}`);
+  return { users: await listPortalUsers(contactId), inviteUrl, mail };
 }
 
 
