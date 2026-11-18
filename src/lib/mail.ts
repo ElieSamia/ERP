@@ -58,19 +58,30 @@ export async function appUrl(fallback?: string) {
 
 const esc = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
-/** One simple, readable email layout: greeting, short paragraphs, one button, company footer. */
+/**
+ * One simple, readable email layout: heading, short paragraphs, one button, company footer.
+ * Built entirely from tables with bgcolor, which is what Outlook for Windows needs to draw it as one card;
+ * Gmail, Apple Mail and phones draw it the same way.
+ */
 export async function layout(o: { heading: string; paragraphs: string[]; button?: { text: string; url: string }; footer?: string }) {
   const company = await getCompany();
-  const body = o.paragraphs.map((p) => `<p style="margin:0 0 14px;line-height:1.55">${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
-  // A table-cell button: the only kind Outlook draws with the right colours and padding.
-  const btn = o.button ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:22px 0"><tr><td bgcolor="#0F6E66" style="background:#0F6E66;border-radius:8px;mso-padding-alt:11px 18px">`
-    + `<a href="${esc(o.button.url)}" target="_blank" style="display:inline-block;padding:11px 18px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;line-height:20px;color:#ffffff;text-decoration:none;border-radius:8px">`
-    + `<span style="color:#ffffff">${esc(o.button.text)}</span></a></td></tr></table>`
-    + `<p style="margin:0 0 14px;font-size:13px;color:#5b6b6a">If the button doesn’t work, copy this address into your browser:<br>${esc(o.button.url)}</p>` : '';
-  const html = `<!doctype html><html><body style="margin:0;background:#f2f5f4;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#17201f">
-<div style="max-width:560px;margin:0 auto;padding:24px 16px"><div style="background:#fff;border-radius:12px;padding:26px 24px;border:1px solid #dde5e3">
-<h1 style="font-size:19px;margin:0 0 16px">${esc(o.heading)}</h1>${body}${btn}</div>
-<p style="font-size:12.5px;color:#5b6b6a;margin:14px 4px;line-height:1.5">${esc(company.name || '')}${company.phone ? ` · ${esc(company.phone)}` : ''}${company.email ? ` · ${esc(company.email)}` : ''}${o.footer ? `<br>${esc(o.footer)}` : ''}</p></div></body></html>`;
+  const font = "font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+  const body = o.paragraphs.map((p) => `<p style="margin:0 0 14px;${font};font-size:15px;line-height:1.55;color:#17201f">${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
+  const btn = o.button ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0 16px"><tr>`
+    + `<td bgcolor="#0F6E66" style="background:#0F6E66;border-radius:8px;padding:11px 20px">`
+    + `<a href="${esc(o.button.url)}" target="_blank" style="${font};font-size:15px;font-weight:600;line-height:20px;color:#ffffff;text-decoration:none"><span style="color:#ffffff">${esc(o.button.text)}</span></a>`
+    + `</td></tr></table>`
+    + `<p style="margin:0;${font};font-size:13px;line-height:1.5;color:#5b6b6a">If the button doesn’t work, copy this address into your browser:<br><a href="${esc(o.button.url)}" style="color:#0F6E66;word-break:break-all">${esc(o.button.url)}</a></p>` : '';
+  const foot = `${esc(company.name || '')}${company.phone ? ` · ${esc(company.phone)}` : ''}${company.email ? ` · ${esc(company.email)}` : ''}${o.footer ? `<br>${esc(o.footer)}` : ''}`;
+  const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f2f5f4">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f2f5f4" style="background:#f2f5f4"><tr><td align="center" style="padding:24px 12px">
+<table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:560px">
+<tr><td bgcolor="#ffffff" style="background:#ffffff;border:1px solid #dde5e3;border-radius:12px;padding:26px 24px">
+<h1 style="margin:0 0 16px;${font};font-size:19px;line-height:1.3;color:#17201f">${esc(o.heading)}</h1>${body}${btn}
+</td></tr>
+<tr><td style="padding:14px 4px;${font};font-size:12.5px;line-height:1.5;color:#5b6b6a">${foot}</td></tr>
+</table></td></tr></table></body></html>`;
   const text = [o.heading, '', ...o.paragraphs, ...(o.button ? ['', `${o.button.text}: ${o.button.url}`] : []), '', company.name || ''].join('\n');
   return { html, text };
 }
