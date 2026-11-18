@@ -21,7 +21,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     if (!list.length || list.some((x) => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x))) throw new HttpError(400, 'Check the email address.');
     const link = `${new URL(req.url).origin}/s/${s._id}`;
     // The message already contains the link; show it as a button too, and keep the paragraphs as typed.
-    const paragraphs = body.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+    // The button carries the link, so take the bare address out of the text; drop lines left empty.
+    const paragraphs = body.split(/\n{2,}/)
+      .map((p) => p.split('\n').map((l) => l.replace(/https?:\/\/\S+\/s\/[A-Za-z0-9_-]+/g, '').trimEnd()).filter((l) => l.trim()).join('\n').trim())
+      .filter(Boolean);
     const m = await layout({ heading: subject, paragraphs, button: { text: 'Open the document', url: link } });
     const r = await sendMail({ to: list, subject, ...m, kind: `share-${s.kind}`, ref: { model: s.model, id: s.recordId } });
     if (!r.sent) throw new HttpError(502, r.error ?? 'Sending failed.');

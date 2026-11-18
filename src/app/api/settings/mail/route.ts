@@ -16,8 +16,12 @@ const schema = z.object({
   appUrl: z.string().trim().max(200).refine((v) => !v || /^https?:\/\/[a-z0-9.-]+(:\d+)?\/?$/i.test(v), 'Use an address like https://erp.thetravelconsult.com'),
 }).refine((s) => !s.enabled || (s.host && s.user && s.fromEmail), { message: 'Fill in the server, username and sending address before turning sending on.' });
 
-export async function GET() {
-  return handle(async () => { await requireUser('admin'); return { settings: await getMailSettings(), log: await recentEmails() }; });
+export async function GET(req: Request) {
+  return handle(async () => {
+    await requireUser('admin');
+    const failed = new URL(req.url).searchParams.get('failed') === '1';
+    return { settings: await getMailSettings(), log: await recentEmails(25, failed) };
+  });
 }
 
 /** Saves the mail settings. An empty password keeps the saved one; it's never sent back to the browser. */
