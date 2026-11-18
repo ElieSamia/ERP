@@ -62,7 +62,11 @@ const esc = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 export async function layout(o: { heading: string; paragraphs: string[]; button?: { text: string; url: string }; footer?: string }) {
   const company = await getCompany();
   const body = o.paragraphs.map((p) => `<p style="margin:0 0 14px;line-height:1.55">${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
-  const btn = o.button ? `<p style="margin:22px 0"><a href="${esc(o.button.url)}" style="background:#0F6E66;color:#fff;text-decoration:none;padding:11px 18px;border-radius:8px;display:inline-block;font-weight:600">${esc(o.button.text)}</a></p><p style="margin:0 0 14px;font-size:13px;color:#5b6b6a">If the button doesn’t work, copy this address into your browser:<br>${esc(o.button.url)}</p>` : '';
+  // A table-cell button: the only kind Outlook draws with the right colours and padding.
+  const btn = o.button ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:22px 0"><tr><td bgcolor="#0F6E66" style="background:#0F6E66;border-radius:8px;mso-padding-alt:11px 18px">`
+    + `<a href="${esc(o.button.url)}" target="_blank" style="display:inline-block;padding:11px 18px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;line-height:20px;color:#ffffff;text-decoration:none;border-radius:8px">`
+    + `<span style="color:#ffffff">${esc(o.button.text)}</span></a></td></tr></table>`
+    + `<p style="margin:0 0 14px;font-size:13px;color:#5b6b6a">If the button doesn’t work, copy this address into your browser:<br>${esc(o.button.url)}</p>` : '';
   const html = `<!doctype html><html><body style="margin:0;background:#f2f5f4;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#17201f">
 <div style="max-width:560px;margin:0 auto;padding:24px 16px"><div style="background:#fff;border-radius:12px;padding:26px 24px;border:1px solid #dde5e3">
 <h1 style="font-size:19px;margin:0 0 16px">${esc(o.heading)}</h1>${body}${btn}</div>
@@ -110,14 +114,16 @@ export async function recentEmails(limit = 25) {
 }
 
 /** The invitation or new-password email for a portal user. Awaited, so the screen can say whether it went out. */
-export async function sendInviteEmail(o: { to: string; name: string; url: string; reset?: boolean; account?: string }): Promise<MailResult> {
+export async function sendInviteEmail(o: { to: string; name: string; url: string; reset?: boolean; account?: string; days?: number; selfService?: boolean }): Promise<MailResult> {
+  const days = o.days ?? 7;
+  const valid = days === 1 ? 'expires in 24 hours' : `expires in ${days} days`;
   const company = (await getCompany()).name || 'our team';
   const subject = o.reset ? `Set a new password for ${company}` : `Your access to the ${company} portal`;
   const m = await layout({
     heading: o.reset ? 'Set a new password' : `Welcome, ${o.name.split(' ')[0]}`,
     paragraphs: o.reset
-      ? [`Hello ${o.name.split(' ')[0]},`, 'Use the button below to choose a new password for the portal. The link works once and expires in 7 days.', 'If you didn’t ask for this, you can ignore this email.']
-      : [`${company} has given you access to its online portal${o.account ? ` for ${o.account}` : ''}.`, 'Use the button below to choose your password. The link works once and expires in 7 days.'],
+      ? [`Hello ${o.name.split(' ')[0]},`, `Use the button below to choose a new password for the portal. The link works once and ${valid}.`, o.selfService ? 'If you didn’t ask for this, you can ignore this email. Your current password keeps working.' : 'Your previous password no longer works. If you didn’t expect this email, please contact us.']
+      : [`${company} has given you access to its online portal${o.account ? ` for ${o.account}` : ''}.`, `Use the button below to choose your password. The link works once and ${valid}.`],
     button: { text: o.reset ? 'Choose a new password' : 'Set my password', url: o.url },
   });
   return sendMail({ to: o.to, subject, ...m, kind: o.reset ? 'password-reset' : 'invitation' });
