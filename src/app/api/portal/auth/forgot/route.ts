@@ -22,7 +22,7 @@ export async function POST(req: Request) {
     if (u.resetRequestedAt instanceof Date && Date.now() - u.resetRequestedAt.getTime() < 10 * 60 * 1000) return done;
     const inv = newInvite(1);
     await col.updateOne({ _id: u._id }, { $set: { inviteHash: inv.hash, inviteExpires: inv.expires, resetRequestedAt: new Date() } });
-    await sendInviteEmail({ to: String(u.email), name: String(u.name), url: `${await appUrl(new URL(req.url).origin)}/portal/invite/${inv.token}`, reset: true });
+    await sendInviteEmail({ to: String(u.email), name: String(u.name), url: `${await appUrl(new URL(req.url).origin)}/portal/invite/${inv.token}`, reset: true, days: 1, selfService: true });
     return done;
   });
 }
