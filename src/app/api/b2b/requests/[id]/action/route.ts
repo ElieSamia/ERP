@@ -37,7 +37,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (!open) throw new HttpError(409, 'This request is closed.');
       const validUntil = body.validUntil || addDays(todayISO(), (await getPortalSettings()).quoteDays);
       if (validUntil < todayISO()) throw new HttpError(400, 'Set a validity date from today onwards.');
-      await col.updateOne({ _id: oid(id) }, { $set: { status: 'quoted', quote: { amount: body.amount, validUntil, notes: body.notes, sentAt: todayISO() } }, $unset: { approvalBy: '' } });
+      await col.updateOne({ _id: oid(id) }, { $set: { status: 'quoted', quote: { amount: body.amount, validUntil, notes: body.notes, sentAt: todayISO() } }, $unset: { approvalBy: '', quoteLines: '' } }); // a typed-in quote replaces any Rates desk services
       await addMessage(id, 'system', '', `Quote sent: ${money(body.amount)}, valid until ${fmtDate(validUntil)}.`);
       await logActivity('request', id, user.name, `Quote of ${money(body.amount)} sent.`);
       notifyRequest(id, 'quote');

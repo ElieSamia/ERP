@@ -26,6 +26,19 @@ export async function PATCH(req: Request, { params }: Ctx) {
     const before = await col.findOne({ _id: oid(id) });
     if (!before) throw new HttpError(404, 'Booking not found.');
     const data = bookingSchema.parse(await req.json());
+    // Provider links are the server's own record: never taken from the form, kept as they were.
+    type Api = { status?: string; provider?: string };
+    const prevLines = (before.lines as { id: string; cost: number; api?: Api }[]) || [];
+    for (const l of data.lines as { id: string; cost: number; api?: Api }[]) {
+      const p = prevLines.find((x) => x.id === l.id);
+      if (p?.api) {
+        l.api = p.api;
+        if (['held', 'confirmed'].includes(p.api.status ?? '') && Math.abs(Number(l.cost) - Number(p.cost)) > 0.009)
+          throw new HttpError(409, `The cost of a service reserved with ${p.api.provider} comes from the provider and can’t be changed here.`);
+      } else delete l.api;
+    }
+    const removed = prevLines.find((p) => ['held', 'confirmed'].includes(p.api?.status ?? '') && !data.lines.some((l) => l.id === p.id));
+    if (removed) throw new HttpError(409, `A service is reserved with ${removed.api!.provider}. Cancel the reservation before removing it.`);
     // Compare services field by field, so older records saved before a field existed don't count as changed.
     type L = { id: string; type: string; desc: string; date: string; dateTo: string; supplierId: string; cost: number; markup: number; markupType?: string; poId?: string };
     const canon = (ls: L[]) => JSON.stringify(ls.map((l) => [l.id, l.type, l.desc || '', l.date || '', l.dateTo || '', l.supplierId || '', Number(l.cost) || 0, Number(l.markup) || 0, l.markupType || 'percent', l.poId || '']));
