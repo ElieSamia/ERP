@@ -68,8 +68,9 @@ export async function getCompany(): Promise<Company> {
 }
 
 export async function listUsers() {
-  const docs = await (await db()).collection('users').find({}, { projection: { passwordHash: 0 } }).sort({ name: 1 }).toArray();
-  return docs.map((d) => out<StaffUser>(d));
+  // Never send passwords, two-step secrets or recovery codes to the browser, encrypted or not.
+  const docs = await (await db()).collection('users').find({}, { projection: { passwordHash: 0, totpEnc: 0, totpPendingEnc: 0, recoveryHashes: 0, totpLastStep: 0 } }).sort({ name: 1 }).toArray();
+  return docs.map(({ totpEnabled, failedLogins, lockedUntil, ...d }) => { void failedLogins; void lockedUntil; return { ...out<StaffUser>(d as typeof docs[number]), twoStep: !!totpEnabled }; });
 }
 
 export async function needsSetup() {

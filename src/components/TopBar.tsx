@@ -20,7 +20,7 @@ export const MODULES = [
   { href: '/settings', name: 'Settings' },
 ];
 
-export function TopBar({ company, userName }: { company: string; userName: string }) {
+export function TopBar({ company, userName, logo = false }: { company: string; userName: string; logo?: boolean }) {
   const path = usePathname();
   const router = useRouter();
   const cur = MODULES.find((m) => path.startsWith(m.href));
@@ -32,6 +32,8 @@ export function TopBar({ company, userName }: { company: string; userName: strin
   return (
     <header className="topbar">
       <Link className="appsbtn" href="/" aria-label="All apps" title="All apps"><Icon name="grid" /></Link>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {logo && <img src="/logo" alt="" className="bar-logo" />}
       <span className="brand">{cur ? cur.name : company || 'Travel ERP'}</span>
       {cur ? (
         <nav className="modnav" aria-label="Apps">

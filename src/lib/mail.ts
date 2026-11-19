@@ -66,6 +66,7 @@ const esc = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 export async function layout(o: { heading: string; paragraphs: string[]; button?: { text: string; url: string }; footer?: string }) {
   const company = await getCompany();
   const font = "font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+  const logo = await logoTag(company.name || '');
   const body = o.paragraphs.map((p) => `<p style="margin:0 0 14px;${font};font-size:15px;line-height:1.55;color:#17201f">${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
   const btn = o.button ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0 16px"><tr>`
     + `<td bgcolor="#0F6E66" style="background:#0F6E66;border-radius:8px;padding:11px 20px;mso-line-height-rule:exactly;line-height:20px">`
@@ -77,13 +78,21 @@ export async function layout(o: { heading: string; paragraphs: string[]; button?
 <body style="margin:0;padding:0;background:#f2f5f4">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f2f5f4" style="background:#f2f5f4"><tr><td align="center" style="padding:24px 12px">
 <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:560px">
-<tr><td bgcolor="#ffffff" style="background:#ffffff;border:1px solid #dde5e3;border-radius:12px;padding:26px 24px">
+<tr><td bgcolor="#ffffff" style="background:#ffffff;border:1px solid #dde5e3;border-radius:12px;padding:26px 24px">${logo}
 <h1 style="margin:0 0 16px;${font};font-size:19px;line-height:1.3;color:#17201f">${esc(o.heading)}</h1>${body}${btn}
 </td></tr>
 <tr><td style="padding:14px 4px;${font};font-size:12.5px;line-height:1.5;color:#5b6b6a">${foot}</td></tr>
 </table></td></tr></table></body></html>`;
   const text = [o.heading, '', ...o.paragraphs, ...(o.button ? ['', `${o.button.text}: ${o.button.url}`] : []), '', company.name || ''].join('\n');
   return { html, text };
+}
+
+/** The logo at the top of emails, from the public /logo address (mail apps don’t show embedded images reliably). */
+export async function logoTag(alt: string) {
+  const { getBranding } = await import('./branding');
+  const [b, base] = await Promise.all([getBranding(), appUrl()]);
+  if (!b.logo || !base) return '';
+  return `<img src="${esc(base)}/logo" alt="${esc(alt)}" height="44" style="display:block;height:44px;width:auto;max-width:200px;border:0;margin:0 0 18px">`;
 }
 
 export type MailResult = { sent: boolean; error?: string };

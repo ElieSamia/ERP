@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-export function PortalBar({ company, account, user, links }: { company: string; account: string; user: string; links: [string, string][] }) {
+export function PortalBar({ company, account, user, links, logo = false }: { company: string; account: string; user: string; links: [string, string][]; logo?: boolean }) {
   const path = usePathname();
   async function signOut() {
     await fetch('/api/portal/auth/logout', { method: 'POST' }).catch(() => null);
@@ -10,6 +10,8 @@ export function PortalBar({ company, account, user, links }: { company: string; 
   }
   return (
     <header className="topbar">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {logo && <img src="/logo" alt="" className="bar-logo" />}
       <span className="brand">{company}</span>
       <nav className="modnav" aria-label="Portal">
         {links.map(([href, l]) => { const on = href === '/portal' ? path === '/portal' : path.startsWith(href); return <Link key={href} href={href} className={on ? 'on' : ''} aria-current={on ? 'page' : undefined}>{l}</Link>; })}

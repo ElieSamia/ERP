@@ -299,3 +299,34 @@ export type Product = {
 export function productMarkup(p: Pick<Product, 'pricing' | 'markup'>, channel: Channel, pricing: Pricing): { markup: number; markupType: MarkupType } {
   return p.pricing === 'channel' ? { markup: pricing[channel], markupType: pricing.modes?.[channel] ?? 'percent' } : { markup: p.markup, markupType: p.pricing };
 }
+
+/* ---------- Document layouts and appearance (phase 8, part 3) ---------- */
+export type DocLayout = { title: string; accent: string; showLogo: boolean; showTax: boolean; showSigs: boolean; sig1: string; sig2: string; note: string; terms: string };
+export const LAYOUT_KINDS: [DocKind, string][] = [
+  ['confirm', 'Booking confirmation'], ['vouchers', 'Hotel voucher'], ['invoice', 'Invoice'], ['receipt', 'Payment receipt'],
+  ['po', 'Purchase order'], ['voucher', 'Payment voucher'], ['statement', 'Statement of account'], ['supstatement', 'Supplier statement'],
+];
+const L = (title: string, showTax: boolean, note: string, sigs?: [string, string]): DocLayout =>
+  ({ title, accent: '#0E6B6B', showLogo: true, showTax, showSigs: !!sigs, sig1: sigs?.[0] ?? 'Signature', sig2: sigs?.[1] ?? 'Signature', note, terms: '' });
+/** Today's wording, so documents look exactly as before until a layout is changed. */
+export const DEFAULT_LAYOUTS: Record<DocKind, DocLayout> = {
+  confirm: L('Booking confirmation', false, 'Please check names and dates against passports and tell us about any difference right away.'),
+  vouchers: L('Hotel voucher', false, 'Please present this voucher at check-in. Extras not listed are payable directly to the hotel.', ['Issued by', 'Hotel stamp']),
+  invoice: L('Invoice', true, 'Thank you for travelling with us.'),
+  receipt: L('Payment receipt', true, 'Thank you for your payment.', ['Received by', 'Customer']),
+  po: L('Purchase order', true, 'Please quote the purchase order number on your invoice.', ['Authorised by', 'Accepted by supplier']),
+  voucher: L('Payment voucher', false, '', ['Prepared by', 'Received by supplier']),
+  statement: L('Statement of account', true, 'Please contact us if anything on this statement looks wrong.'),
+  supstatement: L('Supplier statement', true, 'Bills appear here once we have recorded them. Please contact us if anything is missing.'),
+};
+export type Appearance = { preset: string; mode: 'system' | 'light' | 'dark'; font: 'instrument' | 'system' | 'serif'; density: 'comfortable' | 'compact'; corners: 'rounded' | 'square'; showLogo: boolean };
+export const DEFAULT_APPEARANCE: Appearance = { preset: 'teal', mode: 'system', font: 'instrument', density: 'comfortable', corners: 'rounded', showLogo: true };
+/** Colour presets: accent and top bar for light and dark mode. */
+export const PRESETS: Record<string, { name: string; light: [string, string, string]; dark: [string, string, string] }> = {
+  teal: { name: 'Teal', light: ['#0E6B6B', '#D9ECEA', '#103A3D'], dark: ['#4FB5AE', '#163837', '#0A2023'] },
+  ocean: { name: 'Ocean', light: ['#1F5FA8', '#DCE8F6', '#14304F'], dark: ['#6FA8E8', '#16283D', '#0B1A2B'] },
+  forest: { name: 'Forest', light: ['#2E6B3A', '#DDEEDF', '#1C3B22'], dark: ['#74C68A', '#18321E', '#0D1F12'] },
+  plum: { name: 'Plum', light: ['#7A3E7E', '#F0E1F1', '#3D1E40'], dark: ['#C68ACA', '#33203A', '#1E1022'] },
+  sunset: { name: 'Sunset', light: ['#B4532A', '#F7E3D8', '#4A2412'], dark: ['#EE9A72', '#3A2218', '#24130B'] },
+  graphite: { name: 'Graphite', light: ['#3E4A55', '#E3E8EC', '#1E252C'], dark: ['#A5B4C2', '#252E36', '#12171C'] },
+};

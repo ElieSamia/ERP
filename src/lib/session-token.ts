@@ -46,3 +46,13 @@ export async function verifyPortal(token?: string): Promise<PortalUser | null> {
     return null;
   }
 }
+
+/* The step between a correct password and the 6-digit code: a 5-minute ticket naming the user, nothing more. */
+export const TWO_STEP_COOKIE = 'erp_2fa';
+export async function signTicket(sub: string): Promise<string> {
+  return new SignJWT({}).setProtectedHeader({ alg: 'HS256' }).setAudience('two-step').setSubject(sub).setIssuedAt().setExpirationTime('5m').sign(key());
+}
+export async function verifyTicket(token?: string): Promise<string | null> {
+  if (!token) return null;
+  try { const { payload } = await jwtVerify(token, key(), { audience: 'two-step' }); return typeof payload.sub === 'string' ? payload.sub : null; } catch { return null; }
+}

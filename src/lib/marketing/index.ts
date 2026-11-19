@@ -1,6 +1,6 @@
 import { ObjectId, type Document, type WithId } from 'mongodb';
 import { db } from '../db';
-import { decrypt, encrypt } from '../mail';
+import { decrypt, encrypt, logoTag } from '../mail';
 import { getCompany } from '../queries';
 import { r2, sell } from '../constants';
 import { brevo, mailchimp, ProviderError, type Provider, type Stats } from './providers';
@@ -119,6 +119,7 @@ export async function campaignHtml(c: Pick<Campaign, 'heading' | 'body' | 'image
   const company = await getCompany();
   const font = "font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
   const paras = c.body.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean).map((p) => `<p style="margin:0 0 14px;${font};font-size:15px;line-height:1.6;color:#17201f">${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
+  const logo = await logoTag(company.name || '');
   const img = /^https:\/\//.test(c.imageUrl) ? `<img src="${esc(c.imageUrl)}" width="512" alt="" style="display:block;width:100%;max-width:512px;height:auto;border-radius:8px;margin:0 0 18px;border:0">` : '';
   const btn = c.buttonText && /^https?:\/\//.test(c.buttonUrl) ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0 6px"><tr><td bgcolor="#0F6E66" style="background:#0F6E66;border-radius:8px;padding:11px 20px;mso-line-height-rule:exactly;line-height:20px"><a href="${esc(c.buttonUrl)}" target="_blank" style="${font};font-size:15px;font-weight:600;line-height:20px;mso-line-height-rule:exactly;color:#ffffff;text-decoration:none"><span style="color:#ffffff">${esc(c.buttonText)}</span></a></td></tr></table>` : '';
   const foot = `${esc(company.name || '')}${s.address ? `<br>${esc(s.address)}` : ''}<br>You get this email because you’re a customer of ${esc(company.name || 'ours')}. ${unsub ? `<a href="${unsub}" style="color:#5b6b6a">Unsubscribe</a>` : '<span style="color:#5b6b6a">Unsubscribe link appears here</span>'}`;
@@ -126,7 +127,7 @@ export async function campaignHtml(c: Pick<Campaign, 'heading' | 'body' | 'image
 <body style="margin:0;padding:0;background:#f2f5f4"><div style="display:none;max-height:0;overflow:hidden">${esc(c.preheader)}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f2f5f4" style="background:#f2f5f4"><tr><td align="center" style="padding:24px 12px">
 <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:560px">
-<tr><td bgcolor="#ffffff" style="background:#ffffff;border:1px solid #dde5e3;border-radius:12px;padding:26px 24px">${img}
+<tr><td bgcolor="#ffffff" style="background:#ffffff;border:1px solid #dde5e3;border-radius:12px;padding:26px 24px">${logo}${img}
 <h1 style="margin:0 0 16px;${font};font-size:21px;line-height:1.3;color:#17201f">${esc(c.heading)}</h1>${paras}${btn}</td></tr>
 <tr><td style="padding:14px 4px;${font};font-size:12px;line-height:1.5;color:#5b6b6a">${foot}</td></tr></table></td></tr></table></body></html>`;
 }

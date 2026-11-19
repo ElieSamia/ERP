@@ -72,8 +72,10 @@ export function UsersPanel({ initial, meId }: { initial: StaffUser[]; meId: stri
                     <option value="admin">Administrator</option><option value="staff">Staff</option>
                   </select>}</td>
                 <td>{u.lastLogin ? fmtDateTime(u.lastLogin) : 'Never'}</td>
-                <td>{u.active ? <span className="badge b-green">Active</span> : <span className="badge">Inactive</span>}</td>
-                <td style={{ textAlign: 'right' }}>{u.id !== meId && <button className="btn" onClick={() => patch(u.id, { active: !u.active })}>{u.active ? 'Deactivate' : 'Activate'}</button>}</td>
+                <td>{u.active ? <span className="badge b-green">Active</span> : <span className="badge">Inactive</span>}{u.twoStep && <span className="badge b-accent" style={{ marginLeft: 4 }} title="Signs in with a code from an authenticator app">Two-step</span>}</td>
+                <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  {u.twoStep && u.id !== meId && <button className="btn" onClick={async () => { if (!window.confirm(`Turn off two-step sign-in for ${u.name}? Use this only if they lost their phone and recovery codes; they can turn it on again.`)) return; try { setUsers(await api<StaffUser[]>(`/api/users/${u.id}/two-step`, 'DELETE')); toast(`Two-step sign-in reset for ${u.name}.`); } catch (e) { toast((e as Error).message, 'err'); } }}>Reset two-step</button>}{' '}
+                  {u.id !== meId && <button className="btn" onClick={() => patch(u.id, { active: !u.active })}>{u.active ? 'Deactivate' : 'Activate'}</button>}</td>
               </tr>
             ))}
           </tbody>

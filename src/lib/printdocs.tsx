@@ -6,7 +6,8 @@ import { getCompany, getContact } from './queries';
 import {
   AGE, PAY_METHODS, SERVICE_TYPES, type DocKind, ageBucket, docTotals, fmtDate, fmtRange, label, money, nights, r2, sell, totals, travList, travelDates,
 } from './constants';
-import { PaperHead, PaperFoot } from './paper';
+import { PaperHead, PaperFoot, paperStyle } from './paper';
+import { layoutFor } from './branding';
 import type { Contact } from './types';
 
 /** Every printable document, used by the staff print pages and by public share links. */
@@ -21,7 +22,7 @@ export type LoadedDoc = {
 
 export async function loadDoc(kind: DocKind, id: string, pid?: string, opts: { prices?: boolean } = {}): Promise<LoadedDoc | null> {
   if (!ObjectId.isValid(id)) return null;
-  const company = await getCompany();
+  const [company, L] = await Promise.all([getCompany(), layoutFor(kind)]);
 
   if (kind === 'supstatement') {
     const contact = await getContact(id);
@@ -39,14 +40,14 @@ export async function loadDoc(kind: DocKind, id: string, pid?: string, opts: { p
     return {
       title: 'Supplier statement', number, party: contact, model: 'contact', recordId: id, back: `/contacts/${id}`, backLabel: 'Back to the contact',
       node: (
-        <article className="paper">
-          <PaperHead company={company} title="Supplier statement" number={number} party={contact} partyLabel="Supplier" showTax meta={[['Currency', 'USD']]} />
+        <article className="paper" style={paperStyle(L)}>
+          <PaperHead company={company} layout={L} title="Supplier statement" number={number} party={contact} partyLabel="Supplier" showTax meta={[['Currency', 'USD']]} />
           <table>
             <thead><tr><th>Date</th><th>Reference</th><th>Description</th><th className="r">Billed</th><th className="r">Paid</th><th className="r">Still owed</th></tr></thead>
             <tbody>{rows.length ? rows.map((x, i) => { run = r2(run + x.billed - x.paid); return <tr key={i}><td>{fmtDate(x.date)}</td><td>{x.ref}</td><td>{x.text}</td><td className="r">{x.billed ? money(x.billed) : ''}</td><td className="r">{x.paid ? money(x.paid) : ''}</td><td className="r">{money(run)}</td></tr>; }) : <tr><td colSpan={6}>No bills recorded yet.</td></tr>}</tbody>
           </table>
           <div className="tot"><div className="g"><span>Still owed to you</span><span>{money(run)}</span></div></div>
-          <PaperFoot company={company} note="Bills appear here once we have recorded them. Please contact us if anything is missing." />
+          <PaperFoot company={company} layout={L} note="Bills appear here once we have recorded them. Please contact us if anything is missing." />
         </article>
       ),
     };
@@ -72,8 +73,8 @@ export async function loadDoc(kind: DocKind, id: string, pid?: string, opts: { p
     return {
       title: 'Statement of account', number, party: contact, model: 'contact', recordId: id, back: `/contacts/${id}`, backLabel: 'Back to the contact',
       node: (
-        <article className="paper">
-          <PaperHead company={company} title="Statement of account" number={number} party={contact} partyLabel="Customer" showTax meta={[['Currency', 'USD']]} />
+        <article className="paper" style={paperStyle(L)}>
+          <PaperHead company={company} layout={L} title="Statement of account" number={number} party={contact} partyLabel="Customer" showTax meta={[['Currency', 'USD']]} />
           <table>
             <thead><tr><th>Date</th><th>Reference</th><th>Description</th><th className="r">Invoices</th><th className="r">Payments</th><th className="r">Balance</th></tr></thead>
             <tbody>{rows.length ? rows.map((x, i) => { run = r2(run + x.charge - x.paid); return <tr key={i}><td>{fmtDate(x.date)}</td><td>{x.ref}</td><td>{x.text}</td><td className="r">{x.charge ? money(x.charge) : ''}</td><td className="r">{x.paid ? money(x.paid) : ''}</td><td className="r">{money(run)}</td></tr>; }) : <tr><td colSpan={6}>No invoices yet.</td></tr>}</tbody>
@@ -81,7 +82,7 @@ export async function loadDoc(kind: DocKind, id: string, pid?: string, opts: { p
           <div className="tot"><div className="g"><span>Balance due</span><span>{money(run)}</span></div></div>
           <h3>Ageing of open invoices</h3>
           <table><thead><tr>{AGE.map(([, l]) => <th key={l} className="r">{l}</th>)}</tr></thead><tbody><tr>{AGE.map(([k]) => <td key={k} className="r">{money(ages[k])}</td>)}</tr></tbody></table>
-          <PaperFoot company={company} note="Please contact us if anything on this statement looks wrong." />
+          <PaperFoot company={company} layout={L} note="Please contact us if anything on this statement looks wrong." />
         </article>
       ),
     };
@@ -103,8 +104,8 @@ export async function loadDoc(kind: DocKind, id: string, pid?: string, opts: { p
       return {
         ...base, title: 'Booking confirmation', number: b.ref,
         node: (
-          <article className="paper">
-            <PaperHead company={company} title="Booking confirmation" number={b.ref} party={contact} partyLabel="Customer" meta={meta} stamp={stamp} />
+          <article className="paper" style={paperStyle(L)}>
+            <PaperHead company={company} layout={L} title="Booking confirmation" number={b.ref} party={contact} partyLabel="Customer" meta={meta} stamp={stamp} />
             <h3>Travellers</h3>{travNode}
             <table>
               <thead><tr><th>Service</th><th>Details</th><th>Dates</th>{prices && <th className="r">Price</th>}</tr></thead>
@@ -112,7 +113,7 @@ export async function loadDoc(kind: DocKind, id: string, pid?: string, opts: { p
             </table>
             {prices && <div className="tot"><div className="g"><span>Total</span><span>{money(totals(b.lines).total)}</span></div></div>}
             {b.tripNotes && <><h3>Important information</h3><p className="pre">{b.tripNotes}</p></>}
-            <PaperFoot company={company} note="Please check names and dates against passports and tell us about any difference right away." />
+            <PaperFoot company={company} layout={L} note="Please check names and dates against passports and tell us about any difference right away." />
           </article>
         ),
       };
@@ -122,16 +123,16 @@ export async function loadDoc(kind: DocKind, id: string, pid?: string, opts: { p
     return {
       ...base, title: 'Hotel vouchers', number: b.ref,
       node: (
-        <article className="paper">
+        <article className="paper" style={paperStyle(L)}>
           {hotels.length === 0 && <p>This booking has no hotel or package services, so there is no voucher to print.</p>}
           {hotels.map((l, i) => (
             <section key={l.id} className="vpage">
-              <PaperHead company={company} title="Hotel voucher" number={`${b.ref}/${i + 1}`} party={providers[i]} partyLabel="Service provider" stamp={stamp}
+              <PaperHead company={company} layout={L} title="Hotel voucher" number={`${b.ref}/${i + 1}`} party={providers[i]} partyLabel="Service provider" stamp={stamp}
                 meta={[['Booking', b.ref], ['Check-in', l.date ? fmtDate(l.date) : 'To be confirmed'], ['Check-out', l.dateTo ? fmtDate(l.dateTo) : 'To be confirmed'], ['Nights', String(nights(l.date, l.dateTo) || '')]]} />
               <h3>Guests</h3>{travNode}
               <h3>Accommodation and services</h3><p className="pre">{l.desc}</p>
               <p className="small">Booked for {b.contactName}.</p>
-              <PaperFoot company={company} note="Please present this voucher at check-in. Extras not listed are payable directly to the hotel." sigs={['Issued by', 'Hotel stamp']} />
+              <PaperFoot company={company} layout={L} note="Please present this voucher at check-in. Extras not listed are payable directly to the hotel." sigs={['Issued by', 'Hotel stamp']} />
             </section>
           ))}
         </article>
@@ -150,8 +151,8 @@ export async function loadDoc(kind: DocKind, id: string, pid?: string, opts: { p
       return {
         ...base, title: 'Invoice', number: inv.number ?? 'Draft',
         node: (
-          <article className="paper">
-            <PaperHead company={company} title="Invoice" number={inv.number ?? 'Draft'} party={contact} partyLabel="Bill to" showTax stamp={stamp}
+          <article className="paper" style={paperStyle(L)}>
+            <PaperHead company={company} layout={L} title="Invoice" number={inv.number ?? 'Draft'} party={contact} partyLabel="Bill to" showTax stamp={stamp}
               meta={[['Invoice date', fmtDate(inv.date)], ['Due date', fmtDate(inv.dueDate)], ['Booking', inv.bookingRef ?? '']]} />
             <table>
               <thead><tr><th>Description</th><th>VAT</th><th className="r">Amount</th><th className="r">VAT amount</th></tr></thead>
@@ -164,7 +165,7 @@ export async function loadDoc(kind: DocKind, id: string, pid?: string, opts: { p
               {t.paid > 0 && <><div><span>Paid</span><span>{money(t.paid)}</span></div><div><span><b>Balance due</b></span><span><b>{money(t.balance)}</b></span></div></>}
             </div>
             {inv.notes && <p className="pre">{inv.notes}</p>}
-            <PaperFoot company={company} note="Thank you for travelling with us." />
+            <PaperFoot company={company} layout={L} note="Thank you for travelling with us." />
           </article>
         ),
       };
@@ -176,8 +177,8 @@ export async function loadDoc(kind: DocKind, id: string, pid?: string, opts: { p
     return {
       ...base, title: 'Payment receipt', number: p.ref,
       node: (
-        <article className="paper">
-          <PaperHead company={company} title="Payment receipt" number={p.ref} party={contact} partyLabel="Received from" showTax
+        <article className="paper" style={paperStyle(L)}>
+          <PaperHead company={company} layout={L} title="Payment receipt" number={p.ref} party={contact} partyLabel="Received from" showTax
             meta={[['Date', fmtDate(p.date)], ['Method', label(PAY_METHODS, p.method)], ['Received into', fin.accounts.find((a) => a.id === p.accountId)?.name ?? '']]} />
           <div className="amountbox"><span className="lbl">Amount received</span><div className="big">{money(p.amount)}</div></div>
           <table><tbody>
@@ -185,7 +186,7 @@ export async function loadDoc(kind: DocKind, id: string, pid?: string, opts: { p
             <tr><td>Invoice total</td><td className="r">{money(docTotals(inv.lines).total)}</td></tr>
             <tr><td>Balance after this payment</td><td className="r"><b>{money(docTotals(inv.lines, inv.payments.slice(0, idx + 1)).balance)}</b></td></tr>
           </tbody></table>
-          <PaperFoot company={company} note="Thank you for your payment." sigs={['Received by', 'Customer']} />
+          <PaperFoot company={company} layout={L} note="Thank you for your payment." sigs={['Received by', 'Customer']} />
         </article>
       ),
     };
@@ -203,8 +204,8 @@ export async function loadDoc(kind: DocKind, id: string, pid?: string, opts: { p
     return {
       ...base, title: 'Purchase order', number: po.ref,
       node: (
-        <article className="paper">
-          <PaperHead company={company} title="Purchase order" number={po.ref} party={supplier} partyLabel="Supplier" showTax stamp={stamp}
+        <article className="paper" style={paperStyle(L)}>
+          <PaperHead company={company} layout={L} title="Purchase order" number={po.ref} party={supplier} partyLabel="Supplier" showTax stamp={stamp}
             meta={[['Order date', fmtDate(po.orderDate)], ['Our reference', booking?.ref ?? ''], ['Travel dates', booking ? travelDates(booking) : '']]} />
           {trav.length > 0 && <><h3>Travellers</h3><p>{trav.map((x) => <span key={x}>{x}<br /></span>)}</p></>}
           <table>
@@ -213,7 +214,7 @@ export async function loadDoc(kind: DocKind, id: string, pid?: string, opts: { p
           </table>
           <div className="tot"><div><span>Untaxed amount</span><span>{money(t.untaxed)}</span></div><div><span>VAT</span><span>{money(t.vat)}</span></div><div className="g"><span>Total</span><span>{money(t.total)}</span></div></div>
           {po.notes && <p className="pre">{po.notes}</p>}
-          <PaperFoot company={company} note="Please quote the purchase order number on your invoice." sigs={['Authorised by', 'Accepted by supplier']} />
+          <PaperFoot company={company} layout={L} note="Please quote the purchase order number on your invoice." sigs={['Authorised by', 'Accepted by supplier']} />
         </article>
       ),
     };
@@ -225,8 +226,8 @@ export async function loadDoc(kind: DocKind, id: string, pid?: string, opts: { p
   return {
     ...base, title: 'Payment voucher', number: x.ref,
     node: (
-      <article className="paper">
-        <PaperHead company={company} title="Payment voucher" number={x.ref} party={supplier} partyLabel="Paid to"
+      <article className="paper" style={paperStyle(L)}>
+        <PaperHead company={company} layout={L} title="Payment voucher" number={x.ref} party={supplier} partyLabel="Paid to"
           meta={[['Date', fmtDate(x.date)], ['Method', label(PAY_METHODS, x.method)], ['Paid from', fin.accounts.find((a) => a.id === x.accountId)?.name ?? ''], ['Supplier bill', po.billRef]]} />
         <div className="amountbox"><span className="lbl">Amount paid</span><div className="big">{money(x.amount)}</div></div>
         <table><tbody>
@@ -234,7 +235,7 @@ export async function loadDoc(kind: DocKind, id: string, pid?: string, opts: { p
           <tr><td>Bill total</td><td className="r">{money(docTotals(po.lines).total)}</td></tr>
           <tr><td>Still owed after this payment</td><td className="r"><b>{money(docTotals(po.lines, po.payments.slice(0, idx + 1)).balance)}</b></td></tr>
         </tbody></table>
-        <PaperFoot company={company} sigs={['Prepared by', 'Received by supplier']} />
+        <PaperFoot company={company} layout={L} sigs={['Prepared by', 'Received by supplier']} />
       </article>
     ),
   };
