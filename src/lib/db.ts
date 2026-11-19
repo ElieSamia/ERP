@@ -40,6 +40,10 @@ async function ensureIndexes(d: Db) {
     d.collection('shares').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     d.collection('moves').createIndex({ key: 1 }, { unique: true, partialFilterExpression: { key: { $type: 'string' } } }),
     d.collection('moves').createIndex({ status: 1, date: 1 }),
+    // Rates desk: search results expire after 3 hours, provider call logs after 30 days.
+    d.collection('offers').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    d.collection('ratelog').createIndex({ at: 1 }, { expireAfterSeconds: 30 * 86400 }),
+    d.collection('ratelog').createIndex({ connectionId: 1, at: -1 }),
     d.collection('portalUsers').createIndex({ email: 1 }, { unique: true }),
     d.collection('portalUsers').createIndex({ contactId: 1 }),
     d.collection('portalUsers').createIndex({ inviteHash: 1 }, { sparse: true }),

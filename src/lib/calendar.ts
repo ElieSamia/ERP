@@ -2,11 +2,11 @@ import { db } from './db';
 import { getFinance } from './finance';
 import { addDays, docTotals, money, todayISO } from './constants';
 
-export type CalKind = 'trip' | 'service' | 'due' | 'bill' | 'lead' | 'quote' | 'reminder';
+export type CalKind = 'trip' | 'service' | 'due' | 'bill' | 'lead' | 'quote' | 'reminder' | 'deadline';
 export type CalEvent = { id: string; date: string; time?: string; kind: CalKind; title: string; sub: string; href?: string; late?: boolean; done?: boolean; note?: string };
 export const CAL_KINDS: [CalKind, string][] = [
   ['trip', 'Departures and returns'], ['service', 'Services'], ['due', 'Customer payments due'], ['bill', 'Supplier payments due'],
-  ['lead', 'Opportunities'], ['quote', 'Quotes expiring'], ['reminder', 'Reminders'],
+  ['lead', 'Opportunities'], ['quote', 'Quotes expiring'], ['deadline', 'Provider deadlines'], ['reminder', 'Reminders'],
 ];
 
 /**
@@ -31,6 +31,14 @@ export async function calendarEvents(from: string, to: string): Promise<CalEvent
     if (b.tripType !== 'service') {
       if (inRange(b.departDate)) ev.push({ id: `dep-${b._id}`, date: b.departDate, kind: 'trip', title: `Departure ${b.ref}${where ? ` to ${where}` : ''}`, sub: `${cname(b.contactId)}${draft}`, href });
       if (b.tripType === 'return' && inRange(b.returnDate)) ev.push({ id: `ret-${b._id}`, date: b.returnDate, kind: 'trip', title: `Return ${b.ref}${where ? ` from ${where}` : ''}`, sub: `${cname(b.contactId)}${draft}`, href });
+    }
+    // Provider deadlines from the Rates desk: hold or ticketing limits, and the last day to cancel for free.
+    for (const l of (b.lines as { id: string; desc: string; api?: { provider: string; status: string; timeLimit?: string; deadline?: string } }[]) || []) {
+      const a = l.api;
+      if (!a || a.status === 'cancelled') continue;
+      const name = (l.desc || '').split('\n')[0].slice(0, 60);
+      if (a.timeLimit && a.status !== 'confirmed' && inRange(a.timeLimit)) ev.push({ id: `tl-${b._id}-${l.id}`, date: a.timeLimit, kind: 'deadline', title: `${a.status === 'held' ? 'Ticket by' : 'Reserve by'}: ${name}`, sub: `${b.ref}, ${a.provider}`, href, late: a.timeLimit < today });
+      if (a.deadline && inRange(a.deadline)) ev.push({ id: `cd-${b._id}-${l.id}`, date: a.deadline, kind: 'deadline', title: `Last free cancellation: ${name}`, sub: `${b.ref}, ${a.provider}`, href });
     }
     for (const l of (b.lines as { id: string; type: string; desc: string; date: string; dateTo: string }[]) || []) {
       // Flights are already shown as departures and returns; other services show on their own dates.

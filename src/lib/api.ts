@@ -27,7 +27,8 @@ export async function handle(fn: () => Promise<unknown>) {
   try {
     return NextResponse.json(await fn());
   } catch (e) {
-    if (e instanceof HttpError) return NextResponse.json({ error: e.message }, { status: e.status });
+    // Some errors carry details the screen needs, such as the new price when a provider's price changed.
+    if (e instanceof HttpError) return NextResponse.json({ error: e.message, ...((e as HttpError & { extra?: object }).extra ?? {}) }, { status: e.status });
     if (e instanceof ZodError) return NextResponse.json({ error: e.issues[0]?.message || 'Check the form.' }, { status: 400 });
     if (e && typeof e === 'object' && 'code' in e && (e as { code: number }).code === 11000)
       return NextResponse.json({ error: 'A record with this email already exists.' }, { status: 409 });

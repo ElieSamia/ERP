@@ -64,6 +64,7 @@ export const bookingLineSchema = z.object({
   poId: z.string().max(40).optional(),
   productId: z.string().max(40).optional(),
   fixedMarkup: z.boolean().optional(),
+  api: z.any().optional(),
   vat: z.coerce.number().refine((v) => v === 0 || v === 11, 'VAT is 0% or 11%.').optional(),
 }).refine((l) => l.markupType === 'amount' || l.markup <= 1000, { message: 'A percentage markup can’t be above 1000%.' });
 
@@ -224,3 +225,12 @@ export const campaignSchema = z.object({
   buttonUrl: z.string().trim().max(500).refine((v) => !v || /^https?:\/\//.test(v), 'Use a link starting with https://').default(''),
   audienceId: z.string().max(40).default(''),
 });
+
+/* ---------- Rates desk ---------- */
+export const connectionSchema = z.object({
+  provider: z.string(), name: z.string().trim().min(1, 'Name the connection.').max(80),
+  kinds: z.array(z.enum(['flight', 'hotel', 'transfer', 'insurance'])).min(1, 'Choose what it sells.'),
+  mode: z.enum(['test', 'live']), supplierId: z.string().max(40).default(''), active: z.boolean().default(true),
+  credentials: z.record(z.string().max(2000)).default({}),
+});
+

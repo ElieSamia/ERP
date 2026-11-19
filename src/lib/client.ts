@@ -12,6 +12,7 @@ export async function api<T>(url: string, method: 'GET' | 'POST' | 'PATCH' | 'PU
     window.location.href = '/login';
     throw new Error('Your session has ended. Sign in again.');
   }
-  if (!res.ok) throw new Error((data as { error?: string }).error || 'Something went wrong. Try again.');
+  // The error keeps the server's details (data), for answers like a provider's changed price.
+  if (!res.ok) throw Object.assign(new Error((data as { error?: string }).error || 'Something went wrong. Try again.'), { status: res.status, data });
   return data as T;
 }

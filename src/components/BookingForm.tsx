@@ -13,6 +13,7 @@ import { ActivityPanel } from './ActivityPanel';
 import { DocumentsPanel } from './DocumentsPanel';
 import { Icon } from './Icon';
 import { CataloguePicker } from './CataloguePicker';
+import { ProviderPanel } from './ProviderPanel';
 import { useToast } from './Toast';
 
 type Draft = Omit<Booking, 'id' | 'ref' | 'status' | 'docs'>;
@@ -221,7 +222,7 @@ export function BookingForm({ initial, suppliers, pricing }: { initial?: Booking
                         <td><input type="date" aria-label="Service date" value={l.date} onChange={(e) => { const v = e.target.value; setLine(l.id, { date: v, dateTo: l.dateTo && v && l.dateTo < v ? '' : l.dateTo }); }} /></td>
                         <td><input type="date" aria-label="Service end date" value={l.dateTo} min={l.date || undefined} aria-invalid={dateErrors.lines.has(l.id) || undefined} className={dateErrors.lines.has(l.id) ? 'bad' : ''} onChange={(e) => setLine(l.id, { dateTo: e.target.value })} /></td>
                         <td><select aria-label="Supplier" value={l.supplierId} onChange={(e) => setLine(l.id, { supplierId: e.target.value })}>{supplierOpts.map(([k, lb]) => <option key={k} value={k}>{lb}</option>)}</select></td>
-                        <td className="num"><input className="w-num" type="number" min={0} step="0.01" aria-label="Cost" value={l.cost} onChange={(e) => setLine(l.id, { cost: parseFloat(e.target.value) || 0 })} /></td>
+                        <td className="num"><input className="w-num" type="number" min={0} step="0.01" aria-label="Cost" value={l.cost} disabled={l.api?.status === 'held' || l.api?.status === 'confirmed'} title={l.api?.status === 'held' || l.api?.status === 'confirmed' ? `Set by ${l.api.provider}` : undefined} onChange={(e) => setLine(l.id, { cost: parseFloat(e.target.value) || 0 })} /></td>
                         <td className="num"><span className="mk">
                           <input className="w-pct" type="number" min={0} step={l.markupType === 'amount' ? '0.01' : '0.5'} aria-label={l.markupType === 'amount' ? 'Markup amount in USD' : 'Markup percent'} value={l.markup} onChange={(e) => setLine(l.id, { markup: parseFloat(e.target.value) || 0 })} />
                           <select aria-label="Markup type" value={l.markupType ?? 'percent'} onChange={(e) => setLine(l.id, { markupType: e.target.value as MarkupType })}>{MARKUP_TYPES.map(([k, lb]) => <option key={k} value={k}>{lb}</option>)}</select>
@@ -257,6 +258,7 @@ export function BookingForm({ initial, suppliers, pricing }: { initial?: Booking
             </div>
           </section>
 
+          {booking && <ProviderPanel booking={booking} dirty={dirty} onChange={applyResult} />}
           {booking ? <DocumentsPanel model="booking" id={booking.id} docs={booking.docs} travellers={travList(b.travellers)} defaultKind="ticket" showPortal
             emptyText="No documents yet. Attach tickets, vouchers, e-visas or passports here." onChange={() => setTick((x) => x + 1)} /> :
             <section className="sheet"><h2>Documents</h2><p className="muted" style={{ margin: 0 }}>Save the booking first, then attach tickets, vouchers and passports.</p></section>}
