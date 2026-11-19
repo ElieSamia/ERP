@@ -6,6 +6,8 @@ import { PORTAL_COOKIE, SESSION_COOKIE, verifyPortal, verifySession } from '@/li
 const PUBLIC = [
   '/login', '/setup', '/api/auth/login', '/api/setup', '/prototype.html', '/s',
   '/portal/login', '/portal/invite', '/api/portal/auth',
+  '/logo', // the company logo, for emails and the portal
+  '/api/auth/two-step', // the second sign-in step, which has its own short ticket
 ];
 const isUnder = (path: string, p: string) => path === p || path.startsWith(p + '/');
 
