@@ -1,4 +1,5 @@
 'use client';
+import { DateInput } from './DateInput';
 import { useState } from 'react';
 import { PAY_METHODS, fmtDate, label, money, todayISO, type PayAccount } from '@/lib/constants';
 import type { Payment } from '@/lib/types';
@@ -32,7 +33,7 @@ export function PaymentBox({ title, payments, accounts, balance, canPay, onPay, 
       {canPay && (
         <div className="payform">
           <label className="fld" htmlFor="pay-amount"><span>Amount (USD)</span><input id="pay-amount" type="number" min={0} step="0.01" value={f.amount} onChange={(e) => setF({ ...f, amount: parseFloat(e.target.value) || 0 })} /></label>
-          <label className="fld" htmlFor="pay-date"><span>Date</span><input id="pay-date" type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></label>
+          <label className="fld" htmlFor="pay-date"><span>Date</span><DateInput id="pay-date" value={f.date} onChange={(v) => setF({ ...f, date: v })} /></label>
           <label className="fld" htmlFor="pay-method"><span>Method</span><select id="pay-method" value={f.method} onChange={(e) => setF({ ...f, method: e.target.value })}>{PAY_METHODS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
           <label className="fld" htmlFor="pay-acc"><span>Account</span><select id="pay-acc" value={f.accountId} onChange={(e) => setF({ ...f, accountId: e.target.value })}>{accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
           <button className="btn primary" onClick={submit} disabled={busy}>{busy ? 'Saving…' : 'Record payment'}</button>

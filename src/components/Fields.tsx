@@ -1,4 +1,5 @@
 'use client';
+import { DateInput } from './DateInput';
 import type { ReactNode } from 'react';
 
 type Common = { label: string; id: string; wide?: boolean; disabled?: boolean };
@@ -7,8 +8,10 @@ export function TextField({ label, id, wide, disabled, value, onChange, type = '
   return (
     <label className={`fld ${wide ? 'wide' : ''}`} htmlFor={id}>
       <span>{label}</span>
-      <input id={id} type={type} value={value} placeholder={placeholder} disabled={disabled} min={min || undefined}
-        aria-invalid={error ? true : undefined} aria-describedby={error ? `${id}-err` : undefined} onChange={(e) => onChange(e.target.value)} />
+      {type === 'date'
+        ? <DateInput id={id} value={value} disabled={disabled} min={min} aria-invalid={error ? true : undefined} aria-describedby={error ? `${id}-err` : undefined} onChange={onChange} />
+        : <input id={id} type={type} value={value} placeholder={placeholder} disabled={disabled} min={min || undefined}
+        aria-invalid={error ? true : undefined} aria-describedby={error ? `${id}-err` : undefined} onChange={(e) => onChange(e.target.value)} />}
       {error && <span id={`${id}-err`} className="fld-err">{error}</span>}
     </label>
   );

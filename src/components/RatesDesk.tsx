@@ -1,4 +1,5 @@
 'use client';
+import { DateInput } from './DateInput';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
@@ -61,7 +62,9 @@ export function RatesDesk({ customers, pricing, drafts, requests, hasConnections
   }
 
   const fld = (k: string, label: string, type = 'text', extra: Record<string, unknown> = {}) => (
-    <label className="fld" htmlFor={`rq-${k}`}><span>{label}</span><input id={`rq-${k}`} type={type} value={String(f[k] ?? '')} onChange={(e) => set(k, type === 'number' ? Number(e.target.value) : e.target.value)} {...extra} /></label>
+    <label className="fld" htmlFor={`rq-${k}`}><span>{label}</span>{type === 'date'
+      ? <DateInput id={`rq-${k}`} value={String(f[k] ?? '')} onChange={(v) => set(k, v)} />
+      : <input id={`rq-${k}`} type={type} value={String(f[k] ?? '')} onChange={(e) => set(k, type === 'number' ? Number(e.target.value) : e.target.value)} {...extra} />}</label>
   );
   const total = picked.reduce((s, r) => s + price(r), 0);
   const bookingsFor = drafts.filter((b) => !customer || b.contactId === customer);
@@ -152,7 +155,7 @@ function FlightResults({ results, price, picked, toggle }: { results: Result[]; 
   return (
     <div className="rd-grid">
       <FlightFilterPanel h={h} />
-      <section>
+      <section className="rd-results" aria-label="Flights found">
         <SortTabs h={h} />
         <p className="muted" style={{ margin: '8px 0' }}>{h.sorted.length} of {h.all} flights{h.sorted.length < h.all ? ' match your filters' : ''}</p>
         {list.length === 0 ? <div className="empty">No flights match these filters. <button className="linkbtn" onClick={h.reset}>Reset all</button></div> : list.map((r) => {

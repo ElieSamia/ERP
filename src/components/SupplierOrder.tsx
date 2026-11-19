@@ -1,4 +1,5 @@
 'use client';
+import { DateInput } from './DateInput';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/client';
@@ -103,7 +104,7 @@ export function SupplierOrder({ initial, canRespond, canBill }: { initial: Po; c
             <>
               <div className="grid">
                 <label className="fld" htmlFor="b-ref"><span>Bill or invoice number</span><input id="b-ref" value={bill.billRef} onChange={(e) => setBill({ ...bill, billRef: e.target.value })} /></label>
-                <label className="fld" htmlFor="b-date"><span>Bill date</span><input id="b-date" type="date" value={bill.billDate} onChange={(e) => setBill({ ...bill, billDate: e.target.value })} /></label>
+                <label className="fld" htmlFor="b-date"><span>Bill date</span><DateInput id="b-date" value={bill.billDate} onChange={(v) => setBill({ ...bill, billDate: v })} /></label>
                 <label className="fld" htmlFor="b-amt"><span>Bill total (USD)</span><input id="b-amt" type="number" min={0} step="0.01" value={bill.amount} onChange={(e) => setBill({ ...bill, amount: e.target.value })} /></label>
                 <label className="fld" htmlFor="b-file"><span>File, PDF or photo up to 4 MB</span><input id="b-file" type="file" className="filein" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></label>
               </div>

@@ -1,4 +1,5 @@
 'use client';
+import { DateInput } from './DateInput';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/client';
 import { fmtDate } from '@/lib/constants';
@@ -28,7 +29,9 @@ export function TravellerDetails({ bookingId, travellers, dirty, initial }: { bo
   }
   const set = <K extends keyof PaxInput>(k: K, v: PaxInput[K]) => ed && setEd({ ...ed, p: { ...ed.p, [k]: v } });
   const fld = (k: keyof PaxInput, label: string, type = 'text', ph = '') => (
-    <label className="fld" htmlFor={`px-${k}`}><span>{label}</span><input id={`px-${k}`} type={type} value={ed?.p[k] ?? ''} placeholder={ph} onChange={(e) => set(k, e.target.value as never)} /></label>
+    <label className="fld" htmlFor={`px-${k}`}><span>{label}</span>{type === 'date'
+      ? <DateInput id={`px-${k}`} value={String(ed?.p[k] ?? '')} onChange={(v) => set(k, v as never)} />
+      : <input id={`px-${k}`} type={type} value={ed?.p[k] ?? ''} placeholder={ph} onChange={(e) => set(k, e.target.value as never)} />}</label>
   );
   return (
     <section className="sheet">

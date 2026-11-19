@@ -6,6 +6,7 @@ import { api } from '@/lib/client';
 import { fmtDateTime } from '@/lib/constants';
 import type { Audience, Campaign } from '@/lib/marketing';
 import { Modal } from './Modal';
+import { DateInput } from './DateInput';
 import { useToast } from './Toast';
 
 type Draft = Pick<Campaign, 'name' | 'subject' | 'preheader' | 'heading' | 'body' | 'imageUrl' | 'buttonText' | 'buttonUrl' | 'audienceId'>;
@@ -156,7 +157,10 @@ export function CampaignEditor({ initial, audiences, provider, meEmail }: { init
             <button className={`chip ${!confirm.schedule ? 'on' : ''}`} onClick={() => setConfirm({ ...confirm, schedule: false })}>Send now</button>
             <button className={`chip ${confirm.schedule ? 'on' : ''}`} onClick={() => setConfirm({ ...confirm, schedule: true })}>Schedule</button>
           </div>
-          {confirm.schedule && <label className="fld" htmlFor="c-at"><span>Date and time{provider === 'mailchimp' ? ' (on the quarter hour)' : ''}</span><input id="c-at" type="datetime-local" step={900} value={confirm.at} onChange={(e) => setConfirm({ ...confirm, at: e.target.value })} /></label>}
+          {confirm.schedule && <div className="grid">
+            <label className="fld" htmlFor="c-at"><span>Date</span><DateInput id="c-at" value={confirm.at.slice(0, 10)} onChange={(v) => setConfirm({ ...confirm, at: v ? `${v}T${confirm.at.slice(11, 16) || '09:00'}` : '' })} /></label>
+            <label className="fld" htmlFor="c-tm"><span>Time{provider === 'mailchimp' ? ' (on the quarter hour)' : ''}</span><input id="c-tm" type="time" step={900} value={confirm.at.slice(11, 16)} onChange={(e) => setConfirm({ ...confirm, at: `${confirm.at.slice(0, 10)}T${e.target.value}` })} /></label>
+          </div>}
           <p className="hint">Once sent, a campaign can’t be changed or recalled. Send yourself a test first if you haven’t.</p>
           <div className="dlg-actions">
             <button className="btn" onClick={() => setConfirm(null)}>Cancel</button>

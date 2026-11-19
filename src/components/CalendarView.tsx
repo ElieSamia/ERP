@@ -1,4 +1,5 @@
 'use client';
+import { DateInput } from './DateInput';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
@@ -102,7 +103,7 @@ export function CalendarView({ month, days, events, today, view }: { month: stri
         <Modal title={rem.id ? 'Edit reminder' : 'New reminder'} onClose={() => setRem(null)}>
           <div className="grid">
             <label className="fld wide" htmlFor="r-t"><span>What to remember</span><input id="r-t" autoFocus value={rem.title} onChange={(e) => setRem({ ...rem, title: e.target.value })} placeholder="Call Mansour about the Dubai visas" /></label>
-            <label className="fld" htmlFor="r-d"><span>Date</span><input id="r-d" type="date" value={rem.date} onChange={(e) => setRem({ ...rem, date: e.target.value })} /></label>
+            <label className="fld" htmlFor="r-d"><span>Date</span><DateInput id="r-d" value={rem.date} onChange={(v) => setRem({ ...rem, date: v })} /></label>
             <label className="fld" htmlFor="r-h"><span>Time (optional)</span><input id="r-h" type="time" value={rem.time} onChange={(e) => setRem({ ...rem, time: e.target.value })} /></label>
             <label className="fld wide" htmlFor="r-n"><span>Note</span><textarea id="r-n" rows={3} value={rem.note} onChange={(e) => setRem({ ...rem, note: e.target.value })} /></label>
           </div>

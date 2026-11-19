@@ -1,4 +1,5 @@
 'use client';
+import { DateInput } from './DateInput';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -221,8 +222,8 @@ export function BookingForm({ initial, suppliers, pricing, pax }: { initial?: Bo
                       <tr key={l.id}>
                         <td><select aria-label="Service type" value={l.type} onChange={(e) => setLine(l.id, { type: e.target.value as BookingLine['type'] })}>{SERVICE_TYPES.map(([k, lb]) => <option key={k} value={k}>{lb}</option>)}</select></td>
                         <td><input className="w-desc" aria-label="Description" value={l.desc} onChange={(e) => setLine(l.id, { desc: e.target.value })} /></td>
-                        <td><input type="date" aria-label="Service date" value={l.date} onChange={(e) => { const v = e.target.value; setLine(l.id, { date: v, dateTo: l.dateTo && v && l.dateTo < v ? '' : l.dateTo }); }} /></td>
-                        <td><input type="date" aria-label="Service end date" value={l.dateTo} min={l.date || undefined} aria-invalid={dateErrors.lines.has(l.id) || undefined} className={dateErrors.lines.has(l.id) ? 'bad' : ''} onChange={(e) => setLine(l.id, { dateTo: e.target.value })} /></td>
+                        <td><DateInput aria-label="Service date" value={l.date} onChange={(v) => setLine(l.id, { date: v, dateTo: l.dateTo && v && l.dateTo < v ? '' : l.dateTo })} /></td>
+                        <td><DateInput aria-label="Service end date" value={l.dateTo} min={l.date || undefined} aria-invalid={dateErrors.lines.has(l.id) || undefined} className={dateErrors.lines.has(l.id) ? 'bad' : ''} onChange={(v) => setLine(l.id, { dateTo: v })} /></td>
                         <td><select aria-label="Supplier" value={l.supplierId} onChange={(e) => setLine(l.id, { supplierId: e.target.value })}>{supplierOpts.map(([k, lb]) => <option key={k} value={k}>{lb}</option>)}</select></td>
                         <td className="num"><input className="w-num" type="number" min={0} step="0.01" aria-label="Cost" value={l.cost} disabled={l.api?.status === 'held' || l.api?.status === 'confirmed'} title={l.api?.status === 'held' || l.api?.status === 'confirmed' ? `Set by ${l.api.provider}` : undefined} onChange={(e) => setLine(l.id, { cost: parseFloat(e.target.value) || 0 })} /></td>
                         <td className="num"><span className="mk">
