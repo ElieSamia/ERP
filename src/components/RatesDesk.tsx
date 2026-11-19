@@ -1,12 +1,13 @@
 'use client';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { api } from '@/lib/client';
 import { CHANNEL, fmtDate, money, sell, type Pricing } from '@/lib/constants';
 import type { Result } from '@/lib/rates';
 import type { RateKind } from '@/lib/rates/types';
 import { Modal } from './Modal';
+import { FlightFilterPanel, SortTabs, dur, useFlightFilters } from './FlightFilters';
 import { useToast } from './Toast';
 
 type Opt = { id: string; name: string; type: string };
@@ -37,7 +38,7 @@ export function RatesDesk({ customers, pricing, drafts, requests, hasConnections
   const set = (k: string, v: string | number) => setForms({ ...forms, [kind]: { ...f, [k]: v } });
   const cust = customers.find((c) => c.id === customer);
   const ch = CHANNEL[cust?.type ?? 'customer'] ?? 'B2C';
-  const price = (r: Result) => sell({ cost: r.costUSD, markup: pricing[ch], markupType: pricing.modes?.[ch] ?? 'percent' });
+  const price = useCallback((r: Result) => sell({ cost: r.costUSD, markup: pricing[ch], markupType: pricing.modes?.[ch] ?? 'percent' }), [pricing, ch]);
   const shown = useMemo(() => (results ?? []).filter((r) => filter === 'all' || r.refundable), [results, filter]);
 
   async function search(e: React.FormEvent) {
@@ -83,7 +84,8 @@ export function RatesDesk({ customers, pricing, drafts, requests, hasConnections
           <span className="hint" style={{ margin: 0, alignSelf: 'center' }}>Searches every connected provider at once. Prices shown include your {ch} markup.</span></div>
       </form>
       {errors.map((e) => <p key={e.provider} className="form-error">{e.error}</p>)}
-      {results && (
+      {results && kind === 'flight' && <FlightResults results={results} price={price} picked={picked} toggle={toggle} />}
+      {results && kind !== 'flight' && (
         <section className="sheet">
           <div className="cp" style={{ marginBottom: 8 }}><h2 style={{ margin: 0 }}>{shown.length} option{shown.length === 1 ? '' : 's'}</h2>
             <div className="chips">{(['all', 'refundable'] as const).map((k) => <button key={k} className={`chip ${filter === k ? 'on' : ''}`} onClick={() => setFilter(k)}>{k === 'all' ? 'All' : 'Refundable only'}</button>)}</div></div>
@@ -132,5 +134,44 @@ export function RatesDesk({ customers, pricing, drafts, requests, hasConnections
       )}
       <p className="hint">Results are kept for 3 hours. Search again for fresh prices before adding older ones. <Link href="/bookings">Bookings</Link></p>
     </>
+  );
+}
+
+/** Flight results: filters on the left, Best / Cheapest / Fastest on top, 50 at a time. */
+function FlightResults({ results, price, picked, toggle }: { results: Result[]; price: (r: Result) => number; picked: Result[]; toggle: (r: Result) => void }) {
+  const h = useFlightFilters(results, price);
+  const [shown, setShown] = useState(50);
+  const list = h.sorted.slice(0, shown);
+  const leg = (s: NonNullable<Result['flight']>['slices'][number]) => (
+    <div className="fleg">
+      <span className="ft"><b>{s.departAt.slice(11, 16)}</b><small>{s.origin}</small></span>
+      <span className="fmid"><small>{dur(s.durationMin)}</small><i aria-hidden="true" /><small className={s.stops ? 'stopc' : ''}>{s.stops ? `${s.stops} stop${s.stops > 1 ? 's' : ''} ${s.via.join(', ')}` : 'Direct'}</small></span>
+      <span className="ft"><b>{s.arriveAt.slice(11, 16)}{s.arriveAt.slice(0, 10) > s.departAt.slice(0, 10) && <sup>+1</sup>}</b><small>{s.destination}</small></span>
+    </div>
+  );
+  return (
+    <div className="rd-grid">
+      <FlightFilterPanel h={h} />
+      <section>
+        <SortTabs h={h} />
+        <p className="muted" style={{ margin: '8px 0' }}>{h.sorted.length} of {h.all} flights{h.sorted.length < h.all ? ' match your filters' : ''}</p>
+        {list.length === 0 ? <div className="empty">No flights match these filters. <button className="linkbtn" onClick={h.reset}>Reset all</button></div> : list.map((r) => {
+          const on = picked.some((p) => p.token === r.token), f = r.flight!;
+          return (
+            <article key={r.token} className={`fcard ${on ? 'picked' : ''}`}>
+              <label className="fsel"><input type="checkbox" checked={on} onChange={() => toggle(r)} aria-label={`Select ${r.title}`} /></label>
+              <div className="flegs"><div className="fair">{f.airline}<small> · {r.provider}</small></div>{f.slices.map((s, i) => <div key={i}>{leg(s)}</div>)}
+                <div className="ftags">{f.checkedBags ? <span className="badge">{f.checkedBags} checked bag{f.checkedBags > 1 ? 's' : ''}</span> : <span className="badge">Cabin bag only</span>}
+                  {r.refundable ? <span className="badge b-green">Refundable</span> : <span className="badge b-amber">Non-refundable</span>}
+                  {r.timeLimit && <span className="badge">Hold until {fmtDate(r.timeLimit)}</span>}
+                  {f.emissionsKg ? <span className="badge">{Math.round(f.emissionsKg)} kg CO₂</span> : null}</div></div>
+              <div className="fprice"><b>{money(price(r))}</b><small>cost {money(r.costUSD)}{r.currency !== 'USD' ? ` (${r.amount.toFixed(2)} ${r.currency})` : ''}</small>
+                <button className={`btn ${on ? '' : 'primary'}`} onClick={() => toggle(r)}>{on ? 'Selected' : 'Select'}</button></div>
+            </article>
+          );
+        })}
+        {h.sorted.length > shown && <div className="addrow" style={{ justifyContent: 'center' }}><button className="btn" onClick={() => setShown(shown + 50)}>Show more ({h.sorted.length - shown} left)</button></div>}
+      </section>
+    </div>
   );
 }

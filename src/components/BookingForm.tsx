@@ -256,7 +256,7 @@ export function BookingForm({ initial, suppliers, pricing, pax }: { initial?: Bo
             <h2>Notes</h2>
             <div className="grid">
               <TextArea id="f-tnotes" label="Notes for the customer, printed on the confirmation" rows={5} value={b.tripNotes} onChange={(v) => set('tripNotes', v)} />
-              <TextArea id="f-notes" label="Internal notes, staff only" rows={5} value={b.notes} onChange={(v) => set('notes', v)} />
+              <TextArea id="f-notes" label="Internal notes, staff only" rows={Math.min(24, Math.max(5, b.notes.split('\n').length + 1))} value={b.notes} onChange={(v) => set('notes', v)} />
             </div>
           </section>
 

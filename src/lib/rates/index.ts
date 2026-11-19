@@ -85,13 +85,10 @@ export async function searchAll(query: Query) {
     try {
       const { c } = await connector(conn.id);
       const offers = await Promise.race([c.search(query), new Promise<never>((_, rej) => setTimeout(() => rej(new HttpError(504, `${conn.name}: no answer within 25 seconds.`)), 25000))]);
-      for (const o of offers) {
-        const token = randomBytes(12).toString('base64url');
-        const costUSD = await toUSD(o.amount, o.currency);
-        // Kept for 3 hours, so a result can be added to a quote or booking after the search.
-        await d.collection('offers').insertOne({ _id: token as unknown as ObjectId, connectionId: conn.id, provider: conn.name, offer: o, costUSD, createdAt: new Date(), expiresAt: new Date(Date.now() + 3 * 3600e3) });
-        out.push({ ...o, token, connectionId: conn.id, provider: conn.name, costUSD });
-      }
+      // Kept for 3 hours, so a result can be added to a quote or booking after the search. Written in one batch.
+      const rows = await Promise.all(offers.map(async (o) => ({ o, token: randomBytes(12).toString('base64url'), costUSD: await toUSD(o.amount, o.currency) })));
+      if (rows.length) await d.collection('offers').insertMany(rows.map((r) => ({ _id: r.token as unknown as ObjectId, connectionId: conn.id, provider: conn.name, offer: r.o, costUSD: r.costUSD, createdAt: new Date(), expiresAt: new Date(Date.now() + 3 * 3600e3) })));
+      for (const r of rows) out.push({ ...r.o, token: r.token, connectionId: conn.id, provider: conn.name, costUSD: r.costUSD });
     } catch (e) { errors.push({ provider: conn.name, error: (e as Error).message }); }
   }));
   return { results: out.sort((a, b) => a.costUSD - b.costUSD), errors };
@@ -168,4 +165,47 @@ export async function issueLine(bookingId: string, lineId: string, by: string) {
   const r = await c.issue(l.api.providerRef, l.api.offer);
   await d.collection('bookings').updateOne({ _id: b._id, 'lines.id': lineId }, { $set: { 'lines.$.api.status': r.status, 'lines.$.api.note': r.note ?? '' } });
   await logActivity('booking', bookingId, by, `Issued with ${l.api.provider}: ${r.note ?? r.providerRef}.`);
+}
+
+/* ---------- Booking notes from Rates desk services ---------- */
+const hhmm = (t: string) => `${t.slice(8, 10)}/${t.slice(5, 7)} ${t.slice(11, 16)}`;
+const dmin = (m: number) => `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}`;
+
+/**
+ * Everything known about a service from its provider, written out for staff: itinerary segment by segment,
+ * layovers, baggage, fare conditions, deadlines, provider and offer reference, cost and price.
+ * Goes into the booking's internal notes, never the customer's.
+ */
+export function serviceNotes(l: { desc: string; cost: number; markup: number; markupType?: MarkupType; api?: ApiRef }) {
+  const a = l.api;
+  if (!a) return '';
+  const o = a.offer;
+  const price = r2(markupPrice(l.cost, l.markup, l.markupType));
+  const out: string[] = [`■ ${o.title}`];
+  if (o.flight) {
+    o.flight.slices.forEach((s, i) => {
+      out.push(`  ${o.flight!.slices.length > 1 ? (i === 0 ? 'Outbound' : 'Return') : 'Flight'}: ${s.origin} → ${s.destination}, ${dmin(s.durationMin)}, ${s.stops ? `${s.stops} stop${s.stops > 1 ? 's' : ''}` : 'direct'}${s.fareBrand ? `, fare ${s.fareBrand}` : ''}`);
+      (s.segments ?? []).forEach((g, j) => {
+        out.push(`    ${g.flight}  ${g.from} ${hhmm(g.departAt)} → ${g.to} ${hhmm(g.arriveAt)}${g.cabin ? `, ${g.cabin}` : ''}${g.aircraft ? `, ${g.aircraft}` : ''}`);
+        const next = s.segments![j + 1];
+        if (next) out.push(`      Connection in ${g.to}: ${dmin(Math.round((Date.parse(`${next.departAt}Z`) - Date.parse(`${g.arriveAt}Z`)) / 60000))}`);
+      });
+    });
+    out.push(`  Baggage: ${o.flight.checkedBags ? `${o.flight.checkedBags} checked bag${o.flight.checkedBags > 1 ? 's' : ''} per passenger` : 'cabin bag only'}${o.flight.emissionsKg ? `; about ${Math.round(o.flight.emissionsKg)} kg CO₂` : ''}`);
+  } else {
+    for (const x of o.lines) out.push(`  ${x}`);
+  }
+  for (const c of o.conditions ?? []) out.push(`  ${c}`);
+  out.push(`  ${o.refundable ? 'Refundable' : 'Non-refundable'}${o.cancelDeadline ? `; free cancellation until ${o.cancelDeadline}` : ''}${a.timeLimit ? `; ${o.kind === 'flight' ? 'ticket' : 'confirm'} by ${a.timeLimit}` : ''}`);
+  out.push(`  Provider: ${a.provider}, offer ${o.id}`);
+  out.push(`  Cost ${a.currency !== 'USD' ? `${a.currency} ${a.amount.toFixed(2)} = ` : ''}USD ${l.cost.toFixed(2)}; markup ${l.markupType === 'amount' ? `USD ${l.markup}` : `${l.markup}%`}; selling price USD ${price.toFixed(2)} before VAT`);
+  return out.join('\n');
+}
+const markupPrice = (cost: number, markup: number, type?: MarkupType) => (type === 'amount' ? cost + markup : cost * (1 + markup / 100));
+
+/** The notes block for services added from the Rates desk, dated and signed. */
+export function ratesNotes(lines: Parameters<typeof serviceNotes>[0][], by: string, heading = 'From the Rates desk') {
+  const blocks = lines.map(serviceNotes).filter(Boolean);
+  if (!blocks.length) return '';
+  return `${heading}, ${new Date().toISOString().slice(0, 10)}, ${by}:\n${blocks.join('\n\n')}`;
 }

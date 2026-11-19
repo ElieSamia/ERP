@@ -172,7 +172,7 @@ export async function bookFromRequest(id: string, by: string) {
   const b = await d.collection('bookings').insertOne({
     ref, contactId: String(r.contactId), tripType, bookingDate: todayISO(), origin: 'BEY', destination: '', destinationName: String(r.destination || ''),
     departDate: tripType === 'service' ? '' : String(r.dateFrom || ''), returnDate: tripType === 'return' ? String(r.dateTo || '') : '', travellers: String(r.travellers || ''),
-    tripNotes: '', notes: r.quoteLines?.length ? `From portal request ${r.ref}: ${r.title}\nQuoted from the Rates desk; reserve each service with its provider from this booking.` : notes,
+    tripNotes: '', notes: r.quoteLines?.length ? `From portal request ${r.ref}: ${r.title}\nQuoted from the Rates desk; reserve each service with its provider from this booking.\n\n${(await import('./rates')).ratesNotes(r.quoteLines, by, 'Services quoted')}` : notes,
     // A quote built in the Rates desk becomes exactly those services, still linked to their providers.
     lines: (r.quoteLines as unknown[] | undefined)?.length ? r.quoteLines : [{ id: randomBytes(8).toString('hex'), type: r.type === 'other' ? 'package' : r.type, desc: String(r.title), date: String(r.dateFrom || ''), dateTo: String(r.dateTo || ''), supplierId: '', cost, markup, markupType }],
     docs: [], status: 'draft', leadId: r.leadId || undefined, requestId: id, createdAt: new Date(), createdBy: by,

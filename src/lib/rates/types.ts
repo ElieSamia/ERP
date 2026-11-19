@@ -24,9 +24,18 @@ export type Offer = {
   cancelDeadline?: string; // last free-cancellation date (ISO date)
   timeLimit?: string;      // e.g. ticketing time limit for held flights (ISO date)
   tags?: string[];         // e.g. "Direct", "Breakfast", "4 stars"
+  /** Fare rules and other conditions, as readable lines (refunds, changes, penalties). */
+  conditions?: string[];
+  /** For flights: the structured details the Rates desk filters and sorts on. */
+  flight?: FlightInfo;
   /** Provider-specific details the connector needs later (passenger ids, payment rules), kept with the offer. */
   extra?: Record<string, unknown>;
 };
+/** One direction of a flight. Times are local at each airport, as airlines publish them (YYYY-MM-DDTHH:MM). */
+export type FlightSegment = { flight: string; airline: string; from: string; to: string; departAt: string; arriveAt: string; cabin?: string; aircraft?: string };
+export type FlightSlice = { origin: string; destination: string; departAt: string; arriveAt: string; durationMin: number; stops: number; via: string[]; longestLayoverMin: number; segments?: FlightSegment[]; fareBrand?: string };
+export type FlightInfo = { airline: string; airlineCode: string; slices: FlightSlice[]; checkedBags: number; emissionsKg?: number };
+
 /** A traveller as providers need them. Airlines want everything; hotels usually just the name. */
 export type Traveller = {
   name: string; title?: 'mr' | 'ms' | 'mrs' | 'miss' | 'dr'; givenName?: string; familyName?: string; gender?: 'm' | 'f'; bornOn?: string;

@@ -26,7 +26,28 @@ function search(query: Query): Offer[] {
       const base = (q.cabin === 'business' ? 900 : 180) + (s % 260) + (q.ret ? 140 : 0);
       const dep = `${String(5 + (s % 15)).padStart(2, '0')}:${pick(['05', '20', '35', '50'], s)}`;
       const refundable = s % 4 === 0;
+      // Structured details for the desk's filters: times, durations, stops, layovers, bags.
+      const via = direct ? [] : [pick(['IST', 'DOH', 'AMM', 'CAI'], s)];
+      const leg = (from: string, to: string, date: string, hh: number, mm: number) => {
+        const dur = (direct ? 200 : 330) + (s % 90) + (direct ? 0 : (s >> 5) % 240);
+        const dep = `${date}T${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+        const arr = new Date(Date.parse(`${dep}Z`) + dur * 60000).toISOString().slice(0, 16);
+        const lay = direct ? 0 : 60 + ((s >> 7) % 300);
+        const fn = `${code}${100 + (s % 800)}`;
+        const mid = new Date(Date.parse(`${dep}Z`) + Math.round((dur - lay) / 2) * 60000).toISOString().slice(0, 16);
+        const mid2 = new Date(Date.parse(`${mid}Z`) + lay * 60000).toISOString().slice(0, 16);
+        const segments = direct ? [{ flight: fn, airline: name, from, to, departAt: dep, arriveAt: arr, cabin: q.cabin === 'business' ? 'Business' : 'Economy' }]
+          : [{ flight: fn, airline: name, from, to: via[0], departAt: dep, arriveAt: mid, cabin: q.cabin === 'business' ? 'Business' : 'Economy' }, { flight: `${code}${900 - (s % 800)}`, airline: name, from: via[0], to, departAt: mid2, arriveAt: arr, cabin: q.cabin === 'business' ? 'Business' : 'Economy' }];
+        return { origin: from, destination: to, departAt: dep, arriveAt: arr, durationMin: dur, stops: via.length, via, longestLayoverMin: lay, segments };
+      };
+      const mm = Number(pick(['05', '20', '35', '50'], s));
+      const flight = {
+        airline: name, airlineCode: code, checkedBags: pick([1, 1, 0], s >> 3), emissionsKg: 180 + (s % 140) * (direct ? 1 : 1.3),
+        slices: [leg(q.origin, q.destination, q.depart, 5 + (s % 15), mm), ...(q.ret ? [leg(q.destination, q.origin, q.ret, 7 + ((s >> 4) % 14), mm)] : [])],
+      };
       return {
+        flight,
+        conditions: [refundable ? 'Refund before departure: allowed, penalty USD 50.00' : 'Refund before departure: not allowed', 'Changes before departure: allowed, penalty USD 75.00'],
         id: `DF-${code}-${s.toString(36)}`, kind: 'flight', title: `${name}, ${q.origin} to ${q.destination}${q.ret ? ' and back' : ''}`,
         lines: [`${code}${100 + (s % 800)} departs ${q.depart} at ${dep}, ${direct ? 'direct' : `1 stop in ${pick(['IST', 'DOH', 'AMM', 'CAI'], s)}`}`,
           ...(q.ret ? [`Return ${q.ret}, ${direct ? 'direct' : '1 stop'}`] : []), `${pax} passenger${pax === 1 ? '' : 's'}, ${q.cabin}, ${pick(['23 kg', '30 kg', '20 kg'], s >> 3)} checked bag`],
