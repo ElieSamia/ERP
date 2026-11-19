@@ -86,6 +86,7 @@ export const DEMO: ProviderMeta = {
         const code = h(`${o.id}${reference}`).toString(36).toUpperCase().padStart(6, 'X').slice(0, 6);
         return o.kind === 'flight' ? { providerRef: code, status: 'held', timeLimit: o.timeLimit, note: `PNR ${code}, held until ${o.timeLimit}` } : { providerRef: `DEMO-${code}`, status: 'confirmed', note: `Confirmation DEMO-${code}` };
       },
+      async issue(ref) { return { providerRef: ref, status: 'confirmed', note: `PNR ${ref}, ticketed` }; },
       async cancel(_ref, o) { const free = o.refundable && (!o.cancelDeadline || today() <= o.cancelDeadline); return { fee: free ? 0 : o.amount, currency: o.currency }; },
     };
   },

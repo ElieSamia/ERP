@@ -24,8 +24,14 @@ export type Offer = {
   cancelDeadline?: string; // last free-cancellation date (ISO date)
   timeLimit?: string;      // e.g. ticketing time limit for held flights (ISO date)
   tags?: string[];         // e.g. "Direct", "Breakfast", "4 stars"
+  /** Provider-specific details the connector needs later (passenger ids, payment rules), kept with the offer. */
+  extra?: Record<string, unknown>;
 };
-export type Traveller = { name: string };
+/** A traveller as providers need them. Airlines want everything; hotels usually just the name. */
+export type Traveller = {
+  name: string; title?: 'mr' | 'ms' | 'mrs' | 'miss' | 'dr'; givenName?: string; familyName?: string; gender?: 'm' | 'f'; bornOn?: string;
+  email?: string; phone?: string; nationality?: string; passport?: { number: string; country: string; expiry: string };
+};
 export type Reservation = { providerRef: string; status: 'confirmed' | 'held'; timeLimit?: string; note?: string };
 
 export type Connector = {
@@ -34,6 +40,8 @@ export type Connector = {
   recheck(offer: Offer): Promise<{ amount: number; currency: string } | null>;
   reserve(offer: Offer, travellers: Traveller[], reference: string): Promise<Reservation>;
   cancel(providerRef: string, offer: Offer): Promise<{ fee: number; currency: string }>;
+  /** Turns a held reservation into a paid, ticketed one (flights held until a time limit). Optional. */
+  issue?(providerRef: string, offer: Offer): Promise<Reservation>;
   /** A quick call proving the credentials work; returns a short description. */
   check(): Promise<string>;
 };

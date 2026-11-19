@@ -7,7 +7,8 @@ import { getAccSettings, rateOf } from '../accounting';
 import { logActivity } from '../activity';
 import { r2, travList, type MarkupType } from '../constants';
 import { providerMeta } from './registry';
-import type { Connector, Offer, Query, RateKind } from './types';
+import type { Connector, Offer, Query, RateKind, Traveller } from './types';
+import { travellerDetails } from '../travellers';
 
 /* ---------- Connections: one per provider account, credentials encrypted ---------- */
 export type Connection = {
@@ -37,7 +38,9 @@ async function connector(id: string): Promise<{ conn: Connection; c: Connector; 
   const creds = raw.credentialsEnc ? (JSON.parse(decrypt(String(raw.credentialsEnc))) as Record<string, string>) : {};
   const inner = meta.create(creds, raw.mode === 'live' ? 'live' : 'test');
   const conn = toConnection(raw);
-  const logged = <K extends keyof Connector>(op: K) => (async (...args: Parameters<Connector[K]>) => {
+  type Op = 'search' | 'recheck' | 'reserve' | 'cancel' | 'check' | 'issue';
+  const logged = <K extends Op>(op: K) => (async (...args: Parameters<NonNullable<Connector[K]>>) => {
+    if (!inner[op]) throw new Error('This provider doesn’t support that step.');
     const t0 = Date.now();
     try {
       const r = await (inner[op] as (...a: unknown[]) => Promise<unknown>)(...args);
@@ -46,14 +49,16 @@ async function connector(id: string): Promise<{ conn: Connection; c: Connector; 
     } catch (e) {
       const msg = (e as Error).message || 'The provider returned an error.';
       await d.collection('ratelog').insertOne({ connectionId: conn.id, at: new Date(), op, ms: Date.now() - t0, ok: false, error: msg.slice(0, 500), summary: summary(op, args) }).catch(() => null);
-      throw new HttpError(502, `${conn.name}: ${msg}`);
+      // A 400 from the connector is our own check (missing details, wrong token type): something to fix, not a provider failure.
+      const status = (e as { status?: number }).status === 400 ? 400 : 502;
+      throw new HttpError(status, `${conn.name}: ${msg}`);
     }
-  }) as Connector[K];
-  return { conn, raw, c: { search: logged('search'), recheck: logged('recheck'), reserve: logged('reserve'), cancel: logged('cancel'), check: logged('check') } };
+  }) as NonNullable<Connector[K]>;
+  return { conn, raw, c: { search: logged('search'), recheck: logged('recheck'), reserve: logged('reserve'), cancel: logged('cancel'), check: logged('check'), ...(inner.issue ? { issue: logged('issue') } : {}) } };
 }
 function summary(op: string, args: unknown[], r?: unknown) {
   if (op === 'search') { const q = args[0] as Query; return `${q.kind} ${JSON.stringify(q.q)}${Array.isArray(r) ? ` → ${r.length} offers` : ''}`; }
-  if (op === 'reserve' || op === 'recheck' || op === 'cancel') { const o = (op === 'cancel' ? args[1] : args[0]) as Offer; return `${o?.title ?? ''} (${o?.id ?? ''})${r ? ` → ${JSON.stringify(r).slice(0, 160)}` : ''}`; }
+  if (op === 'reserve' || op === 'recheck' || op === 'cancel' || op === 'issue') { const o = (op === 'cancel' || op === 'issue' ? args[1] : args[0]) as Offer; return `${o?.title ?? ''} (${o?.id ?? ''})${r ? ` → ${JSON.stringify(r).slice(0, 160)}` : ''}`; }
   return String(r ?? '').slice(0, 160);
 }
 export async function checkConnection(id: string) { return (await connector(id)).c.check(); }
@@ -127,7 +132,8 @@ export async function reserveLine(bookingId: string, lineId: string, acceptPrice
   if (Math.abs(newCost - l.cost) > 0.009 && acceptPrice !== newCost) {
     throw Object.assign(new HttpError(409, `The price changed from $${l.cost.toFixed(2)} to $${newCost.toFixed(2)}. Accept the new price to reserve.`), { extra: { newCost } });
   }
-  const travellers = travList(String(b.travellers || '')).map((name) => ({ name }));
+  // Names from the booking, with the details entered under Traveller details (date of birth, passport, contact).
+  const travellers: Traveller[] = await travellerDetails(b);
   if (!travellers.length) throw new HttpError(400, 'Add the travellers’ names to the booking first: the provider needs them.');
   const res = await c.reserve({ ...l.api.offer, amount: now.amount, currency: now.currency }, travellers, String(b.ref));
   const api: ApiRef = { ...l.api, status: res.status, providerRef: res.providerRef, timeLimit: res.timeLimit ?? l.api.timeLimit, note: res.note, amount: now.amount, currency: now.currency };
@@ -148,4 +154,18 @@ export async function cancelLine(bookingId: string, lineId: string, by: string) 
   await d.collection('bookings').updateOne({ _id: b._id, 'lines.id': lineId }, { $set: { 'lines.$.api.status': 'cancelled', 'lines.$.api.fee': fee } });
   await logActivity('booking', bookingId, by, `Reservation ${l.api.providerRef} cancelled with ${l.api.provider}${fee ? `; cancellation fee $${fee.toFixed(2)}` : ', no fee'}.`);
   return { fee };
+}
+
+/** Issues a held reservation (for flights: pays and tickets it before the time limit). */
+export async function issueLine(bookingId: string, lineId: string, by: string) {
+  const d = await db();
+  const b = await d.collection('bookings').findOne({ _id: new ObjectId(bookingId) });
+  const l = (b?.lines as { id: string; api?: ApiRef }[] | undefined)?.find((x) => x.id === lineId);
+  if (!b || !l?.api) throw new HttpError(404, 'Service not found.');
+  if (l.api.status !== 'held' || !l.api.providerRef) throw new HttpError(409, 'Only a held reservation can be issued.');
+  const { c } = await connector(l.api.connectionId);
+  if (!c.issue) throw new HttpError(400, `${l.api.provider} doesn’t support issuing from the ERP.`);
+  const r = await c.issue(l.api.providerRef, l.api.offer);
+  await d.collection('bookings').updateOne({ _id: b._id, 'lines.id': lineId }, { $set: { 'lines.$.api.status': r.status, 'lines.$.api.note': r.note ?? '' } });
+  await logActivity('booking', bookingId, by, `Issued with ${l.api.provider}: ${r.note ?? r.providerRef}.`);
 }

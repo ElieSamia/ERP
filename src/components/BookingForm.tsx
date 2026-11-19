@@ -14,6 +14,8 @@ import { DocumentsPanel } from './DocumentsPanel';
 import { Icon } from './Icon';
 import { CataloguePicker } from './CataloguePicker';
 import { ProviderPanel } from './ProviderPanel';
+import { TravellerDetails } from './TravellerDetails';
+import type { PaxInput } from '@/lib/travellers';
 import { useToast } from './Toast';
 
 type Draft = Omit<Booking, 'id' | 'ref' | 'status' | 'docs'>;
@@ -67,7 +69,7 @@ function Ticket({ b, booking }: { b: Draft; booking?: Booking }) {
   );
 }
 
-export function BookingForm({ initial, suppliers, pricing }: { initial?: Booking; suppliers: Option[]; pricing: Pricing }) {
+export function BookingForm({ initial, suppliers, pricing, pax }: { initial?: Booking; suppliers: Option[]; pricing: Pricing; pax?: PaxInput[] }) {
   const router = useRouter();
   const toast = useToast();
   const [booking, setBooking] = useState<Booking | undefined>(initial);
@@ -258,6 +260,7 @@ export function BookingForm({ initial, suppliers, pricing }: { initial?: Booking
             </div>
           </section>
 
+          {booking && <TravellerDetails bookingId={booking.id} travellers={booking.travellers} dirty={dirty} initial={pax ?? []} />}
           {booking && <ProviderPanel booking={booking} dirty={dirty} onChange={applyResult} />}
           {booking ? <DocumentsPanel model="booking" id={booking.id} docs={booking.docs} travellers={travList(b.travellers)} defaultKind="ticket" showPortal
             emptyText="No documents yet. Attach tickets, vouchers, e-visas or passports here." onChange={() => setTick((x) => x + 1)} /> :
