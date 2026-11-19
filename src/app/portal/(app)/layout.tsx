@@ -1,3 +1,4 @@
+import { getAppearance, getBranding } from '@/lib/branding';
 import { redirect } from 'next/navigation';
 import { getPortalCtx } from '@/lib/portal';
 import { getCompany } from '@/lib/queries';
@@ -6,8 +7,10 @@ import { ToastProvider } from '@/components/Toast';
 
 export const dynamic = 'force-dynamic';
 
+
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const ctx = await getPortalCtx();
+  const [pa, pb] = await Promise.all([getAppearance(), getBranding()]);
   if (!ctx) redirect('/portal/login');
   const c = await getCompany();
   const p = ctx.perms;
@@ -24,7 +27,7 @@ export default async function PortalLayout({ children }: { children: React.React
   if (p.manageUsers === 'yes') links.push(['/portal/team', 'Team']);
   return (
     <ToastProvider>
-      <PortalBar company={c.name || 'Portal'} account={ctx.contactName} user={ctx.name} links={links} />
+      <PortalBar logo={pa.showLogo && !!pb.logo} company={c.name || 'Portal'} account={ctx.contactName} user={ctx.name} links={links} />
       <main className="main">{children}</main>
     </ToastProvider>
   );

@@ -451,3 +451,22 @@ a.ag{text-decoration:none}
 @media (max-width:1100px){.cmp{grid-template-columns:1fr}}
 .cmp-prev{position:sticky;top:12px}
 .mailprev{width:100%;height:620px;border:1px solid var(--line);border-radius:8px;background:#f2f5f4}
+.paper .doc-logo{display:block;max-height:64px;max-width:220px;object-fit:contain;margin-bottom:8px}
+.paper .terms{margin-top:22px;font-size:12px;color:#4a5560;white-space:pre-line}.paper .terms p{margin:2px 0 0}
+.swatch{width:26px;height:26px;border-radius:50%;border:2px solid var(--surface);box-shadow:0 0 0 1px var(--line);cursor:pointer;padding:0}
+.swatch.on{box-shadow:0 0 0 2px var(--ink)}
+.presets{display:flex;flex-wrap:wrap;gap:8px}
+.preset{display:flex;flex-direction:column;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 10px;cursor:pointer;font-size:13px}
+.preset.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.preset .pv{display:flex;width:72px;height:22px;border-radius:6px;overflow:hidden}.preset .pv i{flex:1}
+.bar-logo{height:26px;width:auto;max-width:120px;object-fit:contain;background:#fff;border-radius:5px;padding:2px 4px;margin-right:4px}
+[data-density="compact"] body{font-size:14px}
+[data-density="compact"] td,[data-density="compact"] th{padding-top:5px!important;padding-bottom:5px!important}
+[data-density="compact"] .sheet{padding:14px 16px}
+[data-density="compact"] .btn{padding-top:5px;padding-bottom:5px}
+[data-corners="square"] *:not(.dot):not(.swatch):not(.paper){border-radius:3px!important}
+p.banner{display:block}
+.twostep{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start}
+.twostep .qr{background:#fff;padding:8px;border-radius:8px;border:1px solid var(--line);line-height:0}.twostep .qr svg{width:180px;height:180px}
+.key{font-family:ui-monospace,Menlo,Consolas,monospace;background:var(--sunk);padding:2px 6px;border-radius:4px;letter-spacing:.04em}
+.rcodes{font-family:ui-monospace,Menlo,Consolas,monospace;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 14px;columns:2;max-width:320px;margin:10px 0}
