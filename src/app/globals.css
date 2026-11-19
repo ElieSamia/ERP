@@ -473,3 +473,36 @@ p.banner{display:block}
 .grid.g4{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
 tr.picked td{background:var(--accent-soft)}
 .tray{position:sticky;bottom:12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--surface);border:1px solid var(--accent);border-radius:12px;padding:10px 14px;margin-top:14px;box-shadow:0 6px 24px rgba(0,0,0,.14)}
+.rd-grid{display:grid;grid-template-columns:260px minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:900px){.rd-grid{grid-template-columns:1fr}}
+.fpanel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;position:sticky;top:12px;max-height:calc(100vh - 24px);overflow-y:auto}
+.ff{border-top:1px solid var(--line);padding:6px 0}.ff summary{cursor:pointer;font-weight:600;padding:6px 0;list-style:none;display:flex;justify-content:space-between}
+.ff summary::after{content:"⌄";color:var(--muted)}.ff[open] summary::after{content:"⌃"}
+.ff-body{padding:2px 0 8px}.ff-row{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:14px;cursor:pointer}.ff-row span{flex:1}.ff-row small{color:var(--muted)}
+.ff-sub{margin:8px 0 2px;font-size:12.5px;color:var(--muted)}.ff-range{display:block;font-size:14px}.ff-range input{width:100%;margin-top:6px}
+.sorttabs{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface)}
+.sorttabs button{border:0;background:none;text-align:left;padding:10px 14px;cursor:pointer;display:flex;flex-direction:column;gap:1px;color:var(--ink);border-right:1px solid var(--line)}
+.sorttabs button:last-child{border-right:0}.sorttabs button b{font-size:19px}.sorttabs button small{color:var(--muted);font-size:12.5px}
+.sorttabs button.on{background:var(--bar);color:var(--bar-ink)}.sorttabs button.on small{color:var(--bar-muted)}
+.fcard{display:grid;grid-template-columns:28px minmax(0,1fr) 150px;gap:12px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px}
+.fcard.picked{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+@media (max-width:640px){.fcard{grid-template-columns:24px 1fr}.fprice{grid-column:2}}
+.fair{font-weight:600;margin-bottom:4px}.fair small{font-weight:400;color:var(--muted)}
+.fleg{display:grid;grid-template-columns:70px 1fr 70px;align-items:center;gap:10px;padding:4px 0}
+.ft{display:flex;flex-direction:column}.ft b{font-size:17px}.ft small{color:var(--muted);font-size:12.5px}.ft:last-child{text-align:right}
+.fmid{display:flex;flex-direction:column;align-items:center;font-size:12.5px;color:var(--muted)}.fmid i{display:block;width:100%;height:1px;background:var(--line);margin:3px 0}
+.stopc{color:var(--amber)}.ftags{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.fprice{display:flex;flex-direction:column;align-items:flex-end;gap:4px;text-align:right}.fprice b{font-size:20px}.fprice small{color:var(--muted);font-size:12px}
+/* dd/mm/yyyy date field: our own text box, with the browser's calendar behind a button */
+.dinput{position:relative;display:flex;align-items:stretch;width:100%}
+.dinput input[type="text"]{flex:1;min-width:0;padding-right:34px;font-variant-numeric:tabular-nums}
+.dinput .dbtn{position:absolute;right:4px;top:50%;transform:translateY(-50%);border:0;background:none;color:var(--muted);cursor:pointer;padding:4px;display:flex;border-radius:6px}
+.dinput .dbtn:hover{color:var(--accent);background:var(--sunk)}
+.dinput .dpick{position:absolute;right:0;bottom:0;width:34px;height:100%;opacity:0;pointer-events:none;border:0;padding:0}
+.dinput.bad input[type="text"],.dinput input[aria-invalid="true"]{border-color:var(--red);box-shadow:0 0 0 1px var(--red)}
+td .dinput{min-width:150px}
+/* Rates desk results: filters in their own panel, flights in their own frame */
+.rd-results{background:var(--sunk);border:1px solid var(--line);border-radius:14px;padding:14px;min-height:300px}
+.rd-results .fcard{background:var(--surface)}
+.fpanel{box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.fpanel .ff-row input{margin:0}
