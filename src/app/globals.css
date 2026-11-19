@@ -470,3 +470,6 @@ p.banner{display:block}
 .twostep .qr{background:#fff;padding:8px;border-radius:8px;border:1px solid var(--line);line-height:0}.twostep .qr svg{width:180px;height:180px}
 .key{font-family:ui-monospace,Menlo,Consolas,monospace;background:var(--sunk);padding:2px 6px;border-radius:4px;letter-spacing:.04em}
 .rcodes{font-family:ui-monospace,Menlo,Consolas,monospace;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 14px;columns:2;max-width:320px;margin:10px 0}
+.grid.g4{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
+tr.picked td{background:var(--accent-soft)}
+.tray{position:sticky;bottom:12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--surface);border:1px solid var(--accent);border-radius:12px;padding:10px 14px;margin-top:14px;box-shadow:0 6px 24px rgba(0,0,0,.14)}

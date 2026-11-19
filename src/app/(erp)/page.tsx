@@ -39,6 +39,7 @@ export default async function Home() {
         <Link className="app" href="/bookings"><span className="ico"><Icon name="plane" /></span><b>Bookings</b><span>{active} active trip file{active === 1 ? '' : 's'}</span></Link>
         <Link className="app" href="/invoicing"><span className="ico"><Icon name="doc" /></span><b>Invoicing</b><span>{unpaid} unpaid invoice{unpaid === 1 ? '' : 's'}</span></Link>
         <Link className="app" href="/purchasing"><span className="ico"><Icon name="cart" /></span><b>Purchasing</b><span>{openPOs} open order{openPOs === 1 ? '' : 's'}</span></Link>
+        <Link className="app" href="/rates"><span className="ico"><Icon name="search" /></span><b>Rates desk</b><span>Search flights, hotels, transfers and insurance across providers</span></Link>
         <Link className="app" href="/calendar"><span className="ico"><Icon name="calendar" /></span><b>Calendar</b><span>{week} item{week === 1 ? '' : 's'} in the next 7 days</span></Link>
         <Link className="app" href="/expenses"><span className="ico"><Icon name="receipt" /></span><b>Expenses</b><span>{draftExp} draft{draftExp === 1 ? '' : 's'} to post</span></Link>
         <Link className="app" href="/accounting"><span className="ico"><Icon name="ledger" /></span><b>Accounting</b><span>Journal, reports and VAT, administrators only</span></Link>
