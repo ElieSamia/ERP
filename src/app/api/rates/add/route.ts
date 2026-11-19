@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { handle, HttpError, oid, requireUser } from '@/lib/api';
-import { offerLines } from '@/lib/rates';
+import { offerLines, ratesNotes } from '@/lib/rates';
 import { channelRate, nextBookingRef } from '@/lib/bookings';
 import { logActivity } from '@/lib/activity';
 import { addMessage, syncLead } from '@/lib/portal';
@@ -42,7 +42,7 @@ export async function POST(req: Request) {
       const ref = await nextBookingRef();
       const r = await d.collection('bookings').insertOne({
         ref, contactId, tripType: onlyServices ? 'service' : last && last !== first ? 'return' : 'oneway', bookingDate: todayISO(), origin: '', destination: '', destinationName: '',
-        departDate: onlyServices ? '' : first, returnDate: onlyServices || last === first ? '' : last, travellers: '', tripNotes: '', notes: 'Created from the Rates desk.', lines, docs: [], status: 'draft', createdAt: new Date(), createdBy: user.name,
+        departDate: onlyServices ? '' : first, returnDate: onlyServices || last === first ? '' : last, travellers: '', tripNotes: '', notes: ratesNotes(lines, user.name, 'Created from the Rates desk'), lines, docs: [], status: 'draft', createdAt: new Date(), createdBy: user.name,
       });
       await logActivity('booking', String(r.insertedId), user.name, `Booking ${ref} created from the Rates desk with ${lines.length} service${lines.length === 1 ? '' : 's'}.`);
       return { bookingId: String(r.insertedId) };
@@ -50,7 +50,9 @@ export async function POST(req: Request) {
     if (target.type === 'booking') {
       const b = await d.collection('bookings').findOne({ _id: oid(target.bookingId) });
       if (!b || b.status !== 'draft') throw new HttpError(409, 'Services can only be added to a draft booking.');
-      await d.collection('bookings').updateOne({ _id: b._id }, { $push: { lines: { $each: lines } } } as never);
+      // Append the new services' details to the internal notes, keeping what's already there.
+      const add = ratesNotes(lines, user.name, 'Added from the Rates desk');
+      await d.collection('bookings').updateOne({ _id: b._id }, { $push: { lines: { $each: lines } } as never, $set: { notes: [String(b.notes || '').trim(), add].filter(Boolean).join('\n\n') } });
       await logActivity('booking', String(b._id), user.name, `${lines.length} service${lines.length === 1 ? '' : 's'} added from the Rates desk.`);
       return { bookingId: String(b._id) };
     }
