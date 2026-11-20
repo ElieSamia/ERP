@@ -13,6 +13,7 @@ const PATHS: Record<string, string> = {
   tag: 'M3 12V4h8l10 10-8 8zM7.5 7.5h.01',
   chart: 'M4 20V4M4 20h16M8 16v-5M12 16V8M16 16v-3M20 16V6',
   search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM21 21l-5-5',
+  chat: 'M4 5h16v11H9l-5 4zM8 9h8M8 12h5',
   megaphone: 'M4 10v4h3l7 4V6l-7 4zM18 9a3 3 0 0 1 0 6M7 14l1.5 5h2.5L10 14',
 };
 

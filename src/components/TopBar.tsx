@@ -17,6 +17,7 @@ export const MODULES = [
   { href: '/products', name: 'Products' },
   { href: '/reports', name: 'Reports' },
   { href: '/marketing', name: 'Marketing' },
+  { href: '/whatsapp', name: 'WhatsApp' },
   { href: '/contacts', name: 'Contacts' },
   { href: '/settings', name: 'Settings' },
 ];
