@@ -32,8 +32,13 @@ async function withContactNames(leads: Lead[]) {
 export async function listLeads(q?: string) {
   const filter: Record<string, unknown> = {};
   if (q) {
-    const rx = { $regex: escapeRegex(q), $options: 'i' };
-    filter.$or = [{ title: rx }, { destination: rx }];
+    const rx = { $regex: escapeRegex(q.trim()), $options: 'i' };
+    // Also find opportunities by their customer (name, email, phone with or without spaces) and by their notes,
+    // which hold website enquiry IDs like REQ-20261120-…
+    const digits = q.replace(/\D/g, '');
+    const phone = digits.length >= 5 ? { $regex: digits.split('').join('\\D*') } : null;
+    const contacts = await (await db()).collection('contacts').find({ $or: [{ name: rx }, { email: rx }, ...(phone ? [{ phone }] : [])] }, { projection: { _id: 1 } }).limit(500).toArray();
+    filter.$or = [{ title: rx }, { destination: rx }, { notes: rx }, ...(contacts.length ? [{ contactId: { $in: contacts.map((c) => String(c._id)) } }] : [])];
   }
   const docs = await (await db()).collection('leads').find(filter).sort({ createdAt: -1 }).limit(500).toArray();
   return withContactNames(docs.map((d) => out<Lead>(d)));
