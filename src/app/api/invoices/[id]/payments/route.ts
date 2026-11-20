@@ -4,6 +4,7 @@ import { handle, HttpError, oid, requireUser } from '@/lib/api';
 import { paymentSchema } from '@/lib/schemas';
 import { checkAccount, docTotals, getInvoice, receiptNumber } from '@/lib/finance';
 import { logActivity } from '@/lib/activity';
+import { waNotify } from '@/lib/wanotify';
 import { money } from '@/lib/constants';
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -23,6 +24,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     await col.updateOne({ _id: oid(id) }, { $push: { payments: pay }, $set: { status: paid ? 'paid' : 'posted' } } as never);
     const acc = fin.accounts.find((a) => a.id === p.accountId)?.name;
     await logActivity('invoice', id, user.name, `Payment of ${money(p.amount)} received into ${acc}, receipt ${pay.ref}.${paid ? ' Invoice fully paid.' : ''}`);
+    waNotify('payment-received', { contactId: String(inv.contactId), kind: 'receipt', id, pid: pay.id, model: 'invoice', recordId: id, by: user.name });
     return { invoice: await getInvoice(id), paymentId: pay.id };
   });
 }

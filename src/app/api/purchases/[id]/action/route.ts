@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { handle, HttpError, oid, requireUser } from '@/lib/api';
 import { docTotals, getPurchase } from '@/lib/finance';
 import { logActivity } from '@/lib/activity';
+import { waNotify } from '@/lib/wanotify';
 import { addOrderMessage } from '@/lib/portal';
 import { todayISO } from '@/lib/constants';
 
@@ -47,6 +48,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const told: Record<string, string> = { confirm: 'Order sent to you.', bill: 'Your bill was recorded.', cancel: 'Order cancelled by us.' };
     if (told[body.action]) await addOrderMessage(id, 'system', '', told[body.action]);
     if (body.action === 'confirm') notifyOrder(id, 'sent');
+    if (body.action === 'confirm') waNotify('po-sent', { contactId: String(p.supplierId), kind: 'po', id, model: 'purchase', recordId: id, by: user.name });
     if (body.action === 'cancel') notifyOrder(id, 'cancelled');
     return getPurchase(id);
   });

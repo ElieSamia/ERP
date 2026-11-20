@@ -4,6 +4,7 @@ import { handle, HttpError, oid, requireUser } from '@/lib/api';
 import { exposure, getBooking } from '@/lib/bookings';
 import { getFinance, purchasesFromBooking } from '@/lib/finance';
 import { logActivity } from '@/lib/activity';
+import { waNotify } from '@/lib/wanotify';
 import { money, totals } from '@/lib/constants';
 
 const schema = z.object({ action: z.enum(['confirm', 'ticket', 'cancel', 'draft']) });
@@ -54,6 +55,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     await d.collection('bookings').updateOne({ _id: oid(id) }, { $set: { status: next, updatedAt: new Date(), updatedBy: user.name } });
     await logActivity('booking', id, user.name, msg);
     if (action === 'confirm' && (await getFinance()).autoPO === 'yes') await purchasesFromBooking(id, user.name);
+    if (action === 'confirm') waNotify('booking-confirmed', { contactId: String(b.contactId), kind: 'confirm', id, model: 'booking', recordId: id, by: user.name });
     return getBooking(id);
   });
 }
