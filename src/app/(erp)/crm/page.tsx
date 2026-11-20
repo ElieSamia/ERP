@@ -16,7 +16,7 @@ export default async function CrmPage({ searchParams }: { searchParams: SP }) {
         <div className="crumbs"><h1 style={{ fontSize: 'inherit' }}>CRM pipeline</h1></div>
         <div className="cp-actions"><Link className="btn primary" href="/crm/new">New opportunity</Link></div>
         <div className="cp-tools">
-          <SearchBox placeholder="Search opportunities" />
+          <SearchBox placeholder="Search opportunity, customer, email, phone or enquiry ID" />
           <div className="chips">
             <Link className={`chip ${view !== 'list' ? 'on' : ''}`} href={href('kanban')}>Pipeline</Link>
             <Link className={`chip ${view === 'list' ? 'on' : ''}`} href={href('list')}>List</Link>
