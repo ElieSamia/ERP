@@ -40,7 +40,7 @@ export function ProviderPanel({ booking, onChange, dirty }: { booking: Booking; 
         <thead><tr><th>Service</th><th>Provider</th><th>Status</th><th>Deadlines</th><th><span className="sr">Actions</span></th></tr></thead>
         <tbody>{lines.map((l) => { const a = l.api!; const [st, badge] = STATUS[a.status]; const late = (x?: string) => x && x < today; return (
           <tr key={l.id}><td>{l.desc.split('\n')[0]}</td><td>{a.provider}</td>
-            <td><span className={`badge ${badge}`}>{st}</span>{a.providerRef && <span style={{ display: 'block', fontSize: 13 }}>Ref. <b>{a.providerRef}</b></span>}{a.fee ? <span className="muted" style={{ display: 'block', fontSize: 12 }}>Fee {money(a.fee)}</span> : null}</td>
+            <td><span className={`badge ${badge}`}>{st}</span>{a.reference && <span style={{ display: 'block', fontSize: 13 }}>{l.type === 'flight' ? 'PNR' : 'Confirmation'} <b>{a.reference}</b></span>}{a.providerRef && a.providerRef !== a.reference && <span className="muted" style={{ display: 'block', fontSize: 12 }}>Provider order {a.providerRef}</span>}{a.fee ? <span className="muted" style={{ display: 'block', fontSize: 12 }}>Fee {money(a.fee)}</span> : null}</td>
             <td style={{ fontSize: 13 }}>{a.timeLimit && a.status !== 'cancelled' && a.status !== 'confirmed' && <span className={late(a.timeLimit) ? 'overdue' : ''} style={{ display: 'block' }}>{a.status === 'held' ? 'Ticket by' : 'Hold until'} {fmtDate(a.timeLimit)}</span>}
               {a.deadline && a.status !== 'cancelled' && <span className={late(a.deadline) ? 'overdue' : 'muted'} style={{ display: 'block' }}>Free cancellation until {fmtDate(a.deadline)}</span>}
               {!a.timeLimit && !a.deadline && <span className="muted">Non-refundable</span>}</td>

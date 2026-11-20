@@ -1,5 +1,6 @@
 'use client';
 import { DateInput } from './DateInput';
+import { AirportInput } from './AirportInput';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
@@ -75,7 +76,7 @@ export function RatesDesk({ customers, pricing, drafts, requests, hasConnections
       <div className="chips" style={{ marginBottom: 12 }}>{KINDS.map(([k, l]) => <button key={k} className={`chip ${kind === k ? 'on' : ''}`} onClick={() => { setKind(k); setResults(null); }}>{l}</button>)}</div>
       <form className="sheet" onSubmit={search} style={{ marginBottom: 16 }}>
         <div className="grid g4">
-          {kind === 'flight' && <>{fld('origin', 'From (airport)', 'text', { maxLength: 3, placeholder: 'BEY' })}{fld('destination', 'To (airport)', 'text', { maxLength: 3, placeholder: 'DXB' })}{fld('depart', 'Depart', 'date')}{fld('ret', 'Return (empty for one way)', 'date')}
+          {kind === 'flight' && <><label className="fld" htmlFor="rq-origin"><span>From</span><AirportInput id="rq-origin" value={String(f.origin ?? '')} onChange={(v) => set('origin', v)} placeholder="City, airport or code" /></label><label className="fld" htmlFor="rq-destination"><span>To</span><AirportInput id="rq-destination" value={String(f.destination ?? '')} onChange={(v) => set('destination', v)} placeholder="City, airport or code" /></label>{fld('depart', 'Depart', 'date')}{fld('ret', 'Return (empty for one way)', 'date')}
             {fld('adults', 'Adults', 'number', { min: 1, max: 9 })}{fld('children', 'Children', 'number', { min: 0, max: 9 })}
             <label className="fld" htmlFor="rq-cabin"><span>Cabin</span><select id="rq-cabin" value={String(f.cabin)} onChange={(e) => set('cabin', e.target.value)}><option value="economy">Economy</option><option value="business">Business</option></select></label></>}
           {kind === 'hotel' && <>{fld('destination', 'City or hotel area', 'text', { placeholder: 'Dubai' })}{fld('checkIn', 'Check-in', 'date')}{fld('checkOut', 'Check-out', 'date')}{fld('rooms', 'Rooms', 'number', { min: 1, max: 9 })}{fld('adults', 'Adults', 'number', { min: 1 })}{fld('children', 'Children', 'number', { min: 0 })}</>}
