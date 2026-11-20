@@ -6,6 +6,7 @@ import { getCompany } from '@/lib/queries';
 import { logActivity } from '@/lib/activity';
 import { fmtDate } from '@/lib/constants';
 import { mailReady } from '@/lib/mail';
+import { getWaSettings } from '@/lib/whatsapp';
 
 const schema = z.object({
   kind: z.enum(['confirm', 'vouchers', 'invoice', 'receipt', 'po', 'voucher', 'statement']),
@@ -26,7 +27,7 @@ export async function POST(req: Request) {
     await logActivity(doc.model, doc.recordId, user.name, `Share link created for the ${DOC_KIND_NAMES[b.kind]} ${doc.number}, valid until ${until}.`);
     const company = await getCompany();
     return {
-      url: `${new URL(req.url).origin}/s/${token}`, token, until, title: doc.title, number: doc.number, company: company.name, mailReady: await mailReady(),
+      url: `${new URL(req.url).origin}/s/${token}`, token, until, title: doc.title, number: doc.number, company: company.name, mailReady: await mailReady(), waReady: await (async () => { const w = await getWaSettings(); return w.enabled && w.hasToken && !!w.events.share.template; })(),
       party: { name: doc.party?.name ?? '', email: doc.party?.email ?? '', phone: doc.party?.phone ?? '' },
     };
   });
