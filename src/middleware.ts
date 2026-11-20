@@ -8,6 +8,9 @@ const PUBLIC = [
   '/portal/login', '/portal/invite', '/api/portal/auth',
   '/logo', // the company logo, for emails and the portal
   '/api/auth/two-step', // the second sign-in step, which has its own short ticket
+  '/api/whatsapp/webhook', // Meta's calls, checked by signature instead of a session
+  '/api/public', // website enquiries, checked by site key and origin
+  '/enquire', // the hosted enquiry form
 ];
 const isUnder = (path: string, p: string) => path === p || path.startsWith(p + '/');
 
