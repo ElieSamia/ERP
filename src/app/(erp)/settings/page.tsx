@@ -10,6 +10,12 @@ import { FinanceSettings } from '@/components/FinanceSettings';
 import { MailSettings } from '@/components/MailSettings';
 import { DocumentLayouts } from '@/components/DocumentLayouts';
 import { TwoStepPanel } from '@/components/TwoStepPanel';
+import { WhatsAppSettings } from '@/components/WhatsAppSettings';
+import { EnquirySettings } from '@/components/EnquirySettings';
+import { getEnquirySettings } from '@/lib/enquiry';
+import { getWaSettings } from '@/lib/whatsapp';
+import { appUrl } from '@/lib/mail';
+import { headers } from 'next/headers';
 import { AppearanceSettings } from '@/components/AppearanceSettings';
 import { getAppearance, getBranding } from '@/lib/branding';
 import { getMailSettings, recentEmails } from '@/lib/mail';
@@ -30,6 +36,8 @@ export default async function SettingsPage() {
       {isAdmin && <DocumentLayouts initial={await getBranding()} company={company} />}
       {isAdmin && <AppearanceSettings initial={await getAppearance()} />}
       {isAdmin && mail && <MailSettings initial={mail} log={log} meEmail={user.email} />}
+      {isAdmin && <EnquirySettings initial={await getEnquirySettings()} base={await appUrl(`https://${(await headers()).get('host')}`)} />}
+      {isAdmin && <WhatsAppSettings initial={await getWaSettings()} webhookUrl={`${await appUrl(`https://${(await headers()).get('host')}`)}/api/whatsapp/webhook`} />}
       {isAdmin && <UsersPanel initial={users} meId={user.sub} />}
     </>
   );

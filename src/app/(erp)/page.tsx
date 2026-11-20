@@ -45,6 +45,7 @@ export default async function Home() {
         <Link className="app" href="/accounting"><span className="ico"><Icon name="ledger" /></span><b>Accounting</b><span>Journal, reports and VAT, administrators only</span></Link>
         <Link className="app" href="/b2b"><span className="ico"><Icon name="globe" /></span><b>B2B portal</b><span>{reqs} open request{reqs === 1 ? '' : 's'} from customers</span></Link>
         <Link className="app" href="/products"><span className="ico"><Icon name="tag" /></span><b>Products and pricing</b><span>{products} active product{products === 1 ? '' : 's'} in the catalogue</span></Link>
+        <Link className="app" href="/whatsapp"><span className="ico"><Icon name="chat" /></span><b>WhatsApp</b><span>Conversations with customers and suppliers</span></Link>
         <Link className="app" href="/marketing"><span className="ico"><Icon name="megaphone" /></span><b>Marketing</b><span>Audiences and email campaigns</span></Link>
         <Link className="app" href="/reports"><span className="ico"><Icon name="chart" /></span><b>Reports</b><span>Sales, margins, customers, destinations and pipeline</span></Link>
         <Link className="app" href="/contacts"><span className="ico"><Icon name="person" /></span><b>Contacts</b><span>{contacts} customers, agencies and suppliers</span></Link>
