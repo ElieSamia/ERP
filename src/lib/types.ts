@@ -54,7 +54,7 @@ export type BookingLine = { id: string; type: ServiceType; desc: string; date: s
   /** The product sets its own markup, so changing the customer's channel doesn't reset it. */
   fixedMarkup?: boolean;
   /** Set when the service came from the Rates desk: its provider and reservation. Kept by the server, never edited in the form. */
-  api?: { provider: string; status: 'quoted' | 'held' | 'confirmed' | 'cancelled'; providerRef?: string; timeLimit?: string; deadline?: string; note?: string; fee?: number; currency?: string; amount?: number } };
+  api?: { provider: string; status: 'quoted' | 'held' | 'confirmed' | 'cancelled'; providerRef?: string; reference?: string; timeLimit?: string; deadline?: string; note?: string; fee?: number; currency?: string; amount?: number } };
 export type BookingDoc = {
   /** Uploaded by a customer or supplier in the portal, not by your staff. */
   fromPortal?: boolean; id: string; kind: string; traveller: string; name: string; size: number; type: string; at: string; by: string; shared: 'yes' | 'no' };

@@ -105,9 +105,9 @@ export const DEMO: ProviderMeta = {
       async recheck(o: Offer) { const s = h(o.id); return s % 5 === 0 ? { amount: r2(o.amount * 1.04), currency: o.currency } : { amount: o.amount, currency: o.currency }; },
       async reserve(o, _t, reference) {
         const code = h(`${o.id}${reference}`).toString(36).toUpperCase().padStart(6, 'X').slice(0, 6);
-        return o.kind === 'flight' ? { providerRef: code, status: 'held', timeLimit: o.timeLimit, note: `PNR ${code}, held until ${o.timeLimit}` } : { providerRef: `DEMO-${code}`, status: 'confirmed', note: `Confirmation DEMO-${code}` };
+        return o.kind === 'flight' ? { providerRef: code, reference: code, status: 'held', timeLimit: o.timeLimit, note: `PNR ${code}, held until ${o.timeLimit ? `${o.timeLimit.slice(8, 10)}/${o.timeLimit.slice(5, 7)}/${o.timeLimit.slice(0, 4)}` : 'the time limit'}` } : { providerRef: `DEMO-${code}`, reference: `DEMO-${code}`, status: 'confirmed', note: `Confirmation DEMO-${code}` };
       },
-      async issue(ref) { return { providerRef: ref, status: 'confirmed', note: `PNR ${ref}, ticketed` }; },
+      async issue(ref) { return { providerRef: ref, reference: ref, status: 'confirmed', note: `PNR ${ref}, ticketed` }; },
       async cancel(_ref, o) { const free = o.refundable && (!o.cancelDeadline || today() <= o.cancelDeadline); return { fee: free ? 0 : o.amount, currency: o.currency }; },
     };
   },

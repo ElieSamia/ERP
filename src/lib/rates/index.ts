@@ -87,7 +87,7 @@ export async function searchAll(query: Query) {
       const offers = await Promise.race([c.search(query), new Promise<never>((_, rej) => setTimeout(() => rej(new HttpError(504, `${conn.name}: no answer within 25 seconds.`)), 25000))]);
       // Kept for 3 hours, so a result can be added to a quote or booking after the search. Written in one batch.
       const rows = await Promise.all(offers.map(async (o) => ({ o, token: randomBytes(12).toString('base64url'), costUSD: await toUSD(o.amount, o.currency) })));
-      if (rows.length) await d.collection('offers').insertMany(rows.map((r) => ({ _id: r.token as unknown as ObjectId, connectionId: conn.id, provider: conn.name, offer: r.o, costUSD: r.costUSD, createdAt: new Date(), expiresAt: new Date(Date.now() + 3 * 3600e3) })));
+      if (rows.length) await d.collection('offers').insertMany(rows.map((r) => ({ _id: r.token as unknown as ObjectId, connectionId: conn.id, provider: conn.name, query, offer: r.o, costUSD: r.costUSD, createdAt: new Date(), expiresAt: new Date(Date.now() + 3 * 3600e3) })));
       for (const r of rows) out.push({ ...r.o, token: r.token, connectionId: conn.id, provider: conn.name, costUSD: r.costUSD });
     } catch (e) { errors.push({ provider: conn.name, error: (e as Error).message }); }
   }));
@@ -97,8 +97,19 @@ export async function searchAll(query: Query) {
 /* ---------- From results to booking lines ---------- */
 export type ApiRef = {
   connectionId: string; provider: string; offer: Offer; currency: string; amount: number;
-  status: 'quoted' | 'held' | 'confirmed' | 'cancelled'; providerRef?: string; timeLimit?: string; deadline?: string; note?: string; fee?: number;
+  /** The search that found it, kept so an expired offer can be found again. */
+  query?: Query;
+  status: 'quoted' | 'held' | 'confirmed' | 'cancelled'; providerRef?: string; reference?: string; timeLimit?: string; deadline?: string; note?: string; fee?: number;
 };
+
+const ddmmyyyy = (iso?: string) => (iso && /^\d{4}-\d{2}-\d{2}/.test(iso) ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : iso ?? '');
+/** Adds a dated line to the booking's internal notes, so the reservation history is readable in one place. */
+async function noteLine(bookingId: ObjectId, text: string, by: string) {
+  const d = await db();
+  const b = await d.collection('bookings').findOne({ _id: bookingId }, { projection: { notes: 1 } });
+  const line = `${ddmmyyyy(new Date().toISOString().slice(0, 10))}, ${by}: ${text}`;
+  await d.collection('bookings').updateOne({ _id: bookingId }, { $set: { notes: [String(b?.notes || '').trim(), line].filter(Boolean).join('\n') } });
+}
 const TYPE: Record<RateKind, string> = { flight: 'flight', hotel: 'hotel', transfer: 'transfer', insurance: 'insurance' };
 
 export async function offerLines(tokens: string[], markup: number, markupType: MarkupType) {
@@ -108,7 +119,7 @@ export async function offerLines(tokens: string[], markup: number, markupType: M
   const conns = await listConnections();
   return docs.map((x) => {
     const o = x.offer as Offer, conn = conns.find((c) => c.id === x.connectionId);
-    const api: ApiRef = { connectionId: String(x.connectionId), provider: String(x.provider), offer: o, currency: o.currency, amount: o.amount, status: 'quoted', deadline: o.cancelDeadline, timeLimit: o.timeLimit };
+    const api: ApiRef = { connectionId: String(x.connectionId), provider: String(x.provider), offer: o, query: x.query as Query | undefined, currency: o.currency, amount: o.amount, status: 'quoted', deadline: o.cancelDeadline, timeLimit: o.timeLimit };
     return { id: randomBytes(8).toString('hex'), type: TYPE[o.kind], desc: [o.title, ...o.lines].join('\n'), date: o.date, dateTo: o.dateTo, supplierId: conn?.supplierId ?? '', cost: Number(x.costUSD), markup, markupType, api };
   });
 }
@@ -123,8 +134,17 @@ export async function reserveLine(bookingId: string, lineId: string, acceptPrice
   if (!l?.api) throw new HttpError(404, 'That service didn’t come from a provider.');
   if (l.api.status !== 'quoted') throw new HttpError(409, `Already ${l.api.status === 'cancelled' ? 'cancelled' : 'reserved'} with ${l.api.provider}.`);
   const { c } = await connector(l.api.connectionId);
-  const now = await c.recheck(l.api.offer);
-  if (!now) throw new HttpError(409, `${l.api.provider} says this option is no longer available. Search again for alternatives.`);
+  let offer = l.api.offer;
+  let now = await c.recheck(offer);
+  let refreshed = false;
+  // Offers expire (Duffel's after about 30 minutes). Search again and take the same service if it's still sold.
+  if (!now) {
+    const fresh = await findSame(c, l.api, by);
+    if (!fresh) throw new HttpError(409, `${l.api.provider} no longer sells this exact option. Search the Rates desk again for alternatives.`);
+    offer = fresh; now = { amount: fresh.amount, currency: fresh.currency }; refreshed = true;
+    await d.collection('bookings').updateOne({ _id: b._id, 'lines.id': lineId }, { $set: { 'lines.$.api.offer': fresh, 'lines.$.api.amount': fresh.amount, 'lines.$.api.currency': fresh.currency, 'lines.$.api.timeLimit': fresh.timeLimit ?? null } });
+    await noteLine(b._id, `Offer for ${offer.title} had expired at ${l.api.provider}; the same option was found again (new offer ${fresh.id}, ${fresh.currency} ${fresh.amount.toFixed(2)}).`, by);
+  }
   const newCost = await toUSD(now.amount, now.currency);
   if (Math.abs(newCost - l.cost) > 0.009 && acceptPrice !== newCost) {
     throw Object.assign(new HttpError(409, `The price changed from $${l.cost.toFixed(2)} to $${newCost.toFixed(2)}. Accept the new price to reserve.`), { extra: { newCost } });
@@ -132,9 +152,30 @@ export async function reserveLine(bookingId: string, lineId: string, acceptPrice
   // Names from the booking, with the details entered under Traveller details (date of birth, passport, contact).
   const travellers: Traveller[] = await travellerDetails(b);
   if (!travellers.length) throw new HttpError(400, 'Add the travellers’ names to the booking first: the provider needs them.');
-  const res = await c.reserve({ ...l.api.offer, amount: now.amount, currency: now.currency }, travellers, String(b.ref));
-  const api: ApiRef = { ...l.api, status: res.status, providerRef: res.providerRef, timeLimit: res.timeLimit ?? l.api.timeLimit, note: res.note, amount: now.amount, currency: now.currency };
-  await d.collection('bookings').updateOne({ _id: b._id, 'lines.id': lineId }, { $set: { 'lines.$.api': api, 'lines.$.cost': newCost } });
+  let res;
+  try {
+    res = await c.reserve({ ...offer, amount: now.amount, currency: now.currency }, travellers, String(b.ref));
+  } catch (e) {
+    // The offer can still expire between the price check and the booking: refresh once and ask again.
+    if (!refreshed && /another offer|no longer available|expired|latest availability/i.test((e as Error).message)) {
+      const fresh = await findSame(c, l.api, by);
+      if (fresh) {
+        await d.collection('bookings').updateOne({ _id: b._id, 'lines.id': lineId }, { $set: { 'lines.$.api.offer': fresh, 'lines.$.api.amount': fresh.amount, 'lines.$.api.currency': fresh.currency } });
+        const freshCost = await toUSD(fresh.amount, fresh.currency);
+        throw Object.assign(new HttpError(409, `The offer had just expired at ${l.api.provider}. The same option is available at $${freshCost.toFixed(2)}; reserve again to book it.`), { extra: freshCost !== l.cost ? { newCost: freshCost } : {} });
+      }
+      throw new HttpError(409, `${l.api.provider} no longer sells this exact option. Search the Rates desk again for alternatives.`);
+    }
+    throw e;
+  }
+  const api: ApiRef = { ...l.api, offer, status: res.status, providerRef: res.providerRef, reference: res.reference, timeLimit: res.timeLimit ?? l.api.timeLimit, note: res.note, amount: now.amount, currency: now.currency };
+  // The PNR or confirmation number joins the service's first line, so it prints on the confirmation the customer gets.
+  const tag = res.reference ? `${l.api.offer.kind === 'flight' ? 'PNR' : 'Confirmation'} ${res.reference}` : '';
+  const desc = String((l as { desc?: string }).desc ?? '');
+  const [head, ...rest] = desc.split('\n');
+  const newDesc = tag && !head.includes(tag) ? [`${head} · ${tag}`, ...rest].join('\n') : desc;
+  await d.collection('bookings').updateOne({ _id: b._id, 'lines.id': lineId }, { $set: { 'lines.$.api': api, 'lines.$.cost': newCost, 'lines.$.desc': newDesc } });
+  await noteLine(b._id, `${res.status === 'held' ? 'Held' : 'Reserved'} with ${l.api.provider}: ${l.api.offer.title}${tag ? `, ${tag}` : ''}${res.providerRef !== res.reference ? ` (provider order ${res.providerRef})` : ''}${res.status === 'held' && api.timeLimit ? `, ticket by ${ddmmyyyy(api.timeLimit)}` : ''}${newCost !== l.cost ? `, cost updated to USD ${newCost.toFixed(2)}` : ''}.`, by);
   await logActivity('booking', bookingId, by, `${res.status === 'held' ? 'Held' : 'Reserved'} with ${l.api.provider}: ${res.note ?? res.providerRef}.${newCost !== l.cost ? ` Cost updated to $${newCost.toFixed(2)}.` : ''}`);
   return api;
 }
@@ -149,6 +190,7 @@ export async function cancelLine(bookingId: string, lineId: string, by: string) 
   const r = await c.cancel(l.api.providerRef, l.api.offer);
   const fee = await toUSD(r.fee, r.currency);
   await d.collection('bookings').updateOne({ _id: b._id, 'lines.id': lineId }, { $set: { 'lines.$.api.status': 'cancelled', 'lines.$.api.fee': fee } });
+  await noteLine(b._id, `Cancelled with ${l.api.provider}: ${l.api.offer.title}${l.api.reference ? `, ${l.api.offer.kind === 'flight' ? 'PNR' : 'confirmation'} ${l.api.reference}` : ''}; ${fee ? `cancellation fee USD ${fee.toFixed(2)}` : 'no fee'}.`, by);
   await logActivity('booking', bookingId, by, `Reservation ${l.api.providerRef} cancelled with ${l.api.provider}${fee ? `; cancellation fee $${fee.toFixed(2)}` : ', no fee'}.`);
   return { fee };
 }
@@ -164,6 +206,7 @@ export async function issueLine(bookingId: string, lineId: string, by: string) {
   if (!c.issue) throw new HttpError(400, `${l.api.provider} doesn’t support issuing from the ERP.`);
   const r = await c.issue(l.api.providerRef, l.api.offer);
   await d.collection('bookings').updateOne({ _id: b._id, 'lines.id': lineId }, { $set: { 'lines.$.api.status': r.status, 'lines.$.api.note': r.note ?? '' } });
+  await noteLine(b._id, `Ticket issued with ${l.api.provider}: ${l.api.offer.title}${l.api.reference || r.reference ? `, PNR ${l.api.reference || r.reference}` : ''}.`, by);
   await logActivity('booking', bookingId, by, `Issued with ${l.api.provider}: ${r.note ?? r.providerRef}.`);
 }
 
@@ -196,7 +239,7 @@ export function serviceNotes(l: { desc: string; cost: number; markup: number; ma
     for (const x of o.lines) out.push(`  ${x}`);
   }
   for (const c of o.conditions ?? []) out.push(`  ${c}`);
-  out.push(`  ${o.refundable ? 'Refundable' : 'Non-refundable'}${o.cancelDeadline ? `; free cancellation until ${o.cancelDeadline}` : ''}${a.timeLimit ? `; ${o.kind === 'flight' ? 'ticket' : 'confirm'} by ${a.timeLimit}` : ''}`);
+  out.push(`  ${o.refundable ? 'Refundable' : 'Non-refundable'}${o.cancelDeadline ? `; free cancellation until ${ddmmyyyy(o.cancelDeadline)}` : ''}${a.timeLimit ? `; ${o.kind === 'flight' ? 'ticket' : 'confirm'} by ${ddmmyyyy(a.timeLimit)}` : ''}`);
   out.push(`  Provider: ${a.provider}, offer ${o.id}`);
   out.push(`  Cost ${a.currency !== 'USD' ? `${a.currency} ${a.amount.toFixed(2)} = ` : ''}USD ${l.cost.toFixed(2)}; markup ${l.markupType === 'amount' ? `USD ${l.markup}` : `${l.markup}%`}; selling price USD ${price.toFixed(2)} before VAT`);
   return out.join('\n');
@@ -207,5 +250,24 @@ const markupPrice = (cost: number, markup: number, type?: MarkupType) => (type =
 export function ratesNotes(lines: Parameters<typeof serviceNotes>[0][], by: string, heading = 'From the Rates desk') {
   const blocks = lines.map(serviceNotes).filter(Boolean);
   if (!blocks.length) return '';
-  return `${heading}, ${new Date().toISOString().slice(0, 10)}, ${by}:\n${blocks.join('\n\n')}`;
+  return `${heading}, ${ddmmyyyy(new Date().toISOString().slice(0, 10))}, ${by}:\n${blocks.join('\n\n')}`;
+}
+
+/** A short fingerprint of the service itself (flights: flight numbers and departure times), to recognise it in a new search. */
+function signature(o: Offer) {
+  if (o.flight?.slices.every((s) => s.segments?.length)) return o.flight.slices.map((s) => s.segments!.map((g) => `${g.flight}@${g.departAt}`).join('+')).join('|');
+  return `${o.kind}|${o.title}|${o.date}|${o.dateTo}|${o.lines.join('|')}`;
+}
+/** Repeats the original search and returns the same service, or null if it's no longer sold. */
+async function findSame(c: Connector, api: ApiRef, by: string): Promise<Offer | null> {
+  void by;
+  if (!api.query) return null;
+  const sig = signature(api.offer);
+  const offers = await c.search(api.query);
+  const same = offers.filter((o) => signature(o) === sig);
+  // Several fares can share a flight: prefer the same refund conditions and baggage, then the cheapest.
+  same.sort((a, b) => Number(b.refundable === api.offer.refundable) - Number(a.refundable === api.offer.refundable)
+    || Number((b.flight?.checkedBags ?? 0) === (api.offer.flight?.checkedBags ?? 0)) - Number((a.flight?.checkedBags ?? 0) === (api.offer.flight?.checkedBags ?? 0))
+    || a.amount - b.amount);
+  return same[0] ?? null;
 }

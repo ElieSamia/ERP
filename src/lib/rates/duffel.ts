@@ -126,7 +126,12 @@ export const DUFFEL: ProviderMeta = {
       },
       async recheck(o) {
         guard();
-        try { const r = (await call(token, `/air/offers/${o.id}?return_available_services=false`)) as unknown as DOffer; return { amount: Number(r.total_amount), currency: r.total_currency }; }
+        try {
+          const r = (await call(token, `/air/offers/${o.id}?return_available_services=false`)) as unknown as DOffer;
+          // Duffel offers expire about 30 minutes after the search; an expired one can no longer be booked.
+          if (r.expires_at && Date.parse(r.expires_at) <= Date.now()) return null;
+          return { amount: Number(r.total_amount), currency: r.total_currency };
+        }
         catch (e) { if (e instanceof DuffelError && [404, 410, 422].includes(e.status)) return null; throw e; }
       },
       async reserve(o, travellers): Promise<Reservation> {
@@ -139,14 +144,14 @@ export const DUFFEL: ProviderMeta = {
         } });
         const pr = order.payment_status as { awaiting_payment?: boolean; payment_required_by?: string | null } | undefined;
         const ref = String(order.booking_reference ?? '');
-        if (pr?.awaiting_payment) return { providerRef: String(order.id), status: 'held', timeLimit: pr.payment_required_by ? day(pr.payment_required_by) : o.timeLimit, note: `PNR ${ref}, held until ${pr.payment_required_by ? pr.payment_required_by.replace('T', ' ').slice(0, 16) : 'the time limit'}; issue the ticket before then` };
-        return { providerRef: String(order.id), status: 'confirmed', note: `PNR ${ref}, ticketed` };
+        if (pr?.awaiting_payment) return { providerRef: String(order.id), reference: ref, status: 'held', timeLimit: pr.payment_required_by ? day(pr.payment_required_by) : o.timeLimit, note: `PNR ${ref}, held until ${pr.payment_required_by ? `${pr.payment_required_by.slice(8, 10)}/${pr.payment_required_by.slice(5, 7)}/${pr.payment_required_by.slice(0, 4)} ${pr.payment_required_by.slice(11, 16)} UTC` : 'the time limit'}; issue the ticket before then` };
+        return { providerRef: String(order.id), reference: ref, status: 'confirmed', note: `PNR ${ref}, ticketed` };
       },
       async issue(orderId, o) {
         guard();
         const order = await call(token, `/air/orders/${orderId}`);
         await call(token, '/air/payments', { method: 'POST', body: { order_id: orderId, payment: { type: 'balance', currency: String(order.total_currency ?? o.currency), amount: String(order.total_amount ?? o.amount.toFixed(2)) } } });
-        return { providerRef: orderId, status: 'confirmed', note: `PNR ${String(order.booking_reference ?? '')}, ticketed` };
+        return { providerRef: orderId, reference: String(order.booking_reference ?? ''), status: 'confirmed', note: `PNR ${String(order.booking_reference ?? '')}, ticketed` };
       },
       async cancel(orderId, o) {
         guard();

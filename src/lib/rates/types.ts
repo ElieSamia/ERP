@@ -41,7 +41,8 @@ export type Traveller = {
   name: string; title?: 'mr' | 'ms' | 'mrs' | 'miss' | 'dr'; givenName?: string; familyName?: string; gender?: 'm' | 'f'; bornOn?: string;
   email?: string; phone?: string; nationality?: string; passport?: { number: string; country: string; expiry: string };
 };
-export type Reservation = { providerRef: string; status: 'confirmed' | 'held'; timeLimit?: string; note?: string };
+/** providerRef is the provider's own id for later calls; reference is what travellers and airlines use (PNR, hotel confirmation). */
+export type Reservation = { providerRef: string; reference?: string; status: 'confirmed' | 'held'; timeLimit?: string; note?: string };
 
 export type Connector = {
   search(query: Query): Promise<Offer[]>;
