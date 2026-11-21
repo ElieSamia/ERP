@@ -38,7 +38,7 @@ export function Kanban({ leads }: { leads: Lead[] }) {
             {col.map((l) => (
               <article key={l.id} className="kcard" draggable onDragStart={(e) => e.dataTransfer.setData('text/plain', l.id)}>
                 <Link href={`/crm/${l.id}`}>
-                  <h4>{l.title}</h4><p>{l.contactName}</p><p>{l.destination || 'No destination'}, {fmtDate(l.travelDate)}</p>
+                  <h4>{l.title}</h4>{(l.ref || l.source) && <p className="kmeta">{l.ref}{l.source && <span className="badge" style={{ marginLeft: l.ref ? 6 : 0 }}>{l.source}</span>}</p>}<p>{l.contactName}</p><p>{l.destination || 'No destination'}, {fmtDate(l.travelDate)}</p>
                   <div className="kf"><span>{money(l.budget)}</span><span className="muted">{l.pax} pax</span></div>
                 </Link>
               </article>

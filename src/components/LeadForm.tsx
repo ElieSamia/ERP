@@ -61,7 +61,7 @@ export function LeadForm({ initial }: { initial?: Lead }) {
   return (
     <>
       <div className="cp">
-        <div className="crumbs"><Link className="crumb" href="/crm">CRM</Link><span className="sep">/</span><span>{initial ? saved.title : 'New opportunity'}</span></div>
+        <div className="crumbs"><Link className="crumb" href="/crm">CRM</Link><span className="sep">/</span><span>{initial ? `${initial.ref ? `${initial.ref} · ` : ''}${saved.title}` : 'New opportunity'}</span></div>
         <div className="cp-actions">
           {dirty && <span className="dirty">Unsaved changes</span>}
           <button className="btn primary" onClick={save} disabled={busy || (!!initial && !dirty)}>{busy ? 'Saving…' : 'Save'}</button>
@@ -84,6 +84,7 @@ export function LeadForm({ initial }: { initial?: Lead }) {
       <div className="recpage">
         <div className="recmain">
           {initial?.requestId && <p className="banner">From the B2B portal. Moving this opportunity also updates the customer’s request: Qualified starts the review, Won creates the booking and Lost declines it. Send quotes from the <Link className="link" href={`/b2b/requests/${initial.requestId}`}>portal request</Link>.</p>}
+          {initial?.enquiry && <EnquiryPanel e={initial.enquiry} />}
           <section className="sheet">
             <div className="grid">
               <TextField id="f-title" label="Opportunity" wide value={l.title} onChange={(v) => set('title', v)} />
@@ -101,5 +102,31 @@ export function LeadForm({ initial }: { initial?: Lead }) {
           <aside className="chatter"><h3>Activity</h3><p className="muted" style={{ margin: 0 }}>Nothing is saved until you select Save. The activity log starts then.</p></aside>}
       </div>
     </>
+  );
+}
+
+/** The original request from the website, a partner or WhatsApp, as it arrived. */
+function EnquiryPanel({ e }: { e: NonNullable<Lead['enquiry']> }) {
+  const d = (iso?: string) => (iso ? iso.split('-').reverse().join('/') : '');
+  const rows: [string, React.ReactNode][] = [
+    ['Request ID', <b key="r">{e.requestId}</b>],
+    ['From', `${e.source}${e.channel === 'whatsapp' ? ', by WhatsApp' : ', by form'}${e.alsoVia?.length ? ` (also received by ${e.alsoVia.map((x) => (x === 'whatsapp' ? 'WhatsApp' : 'form')).join(', ')})` : ''}`],
+    ...(e.page?.name ? [['Page', e.page.url ? <a key="p" className="link" href={e.page.url} target="_blank" rel="noopener noreferrer">{e.page.name} ({e.page.type})</a> : `${e.page.name} (${e.page.type})`] as [string, React.ReactNode]] : []),
+    ...(e.formType === 'package' ? [
+      ['Package', `${e.packageName}${e.packageId ? ` (${e.packageId})` : ''}${e.page?.price ? `, from $${e.page.price} per person` : ''}`],
+      ['Dates', `${d(e.departureDate) || '—'}${e.nights ? ` for ${e.nights} nights, back ${d(e.returnDate)}` : ''}`],
+      ['Travellers', `${e.adults ?? 0} adult${e.adults === 1 ? '' : 's'}${e.children ? `, ${e.children} child${e.children === 1 ? '' : 'ren'}` : ''}${e.departureCity ? `, from ${e.departureCity}` : ''}`],
+      ...(e.roomType ? [['Room', `${e.rooms && e.rooms > 1 ? `${e.rooms} × ` : ''}${e.roomType}`] as [string, React.ReactNode]] : []),
+    ] as [string, React.ReactNode][] : [['Subject', e.subject || '—'] as [string, React.ReactNode]]),
+    ...(e.submittedAt ? [['Sent', e.submittedAt] as [string, React.ReactNode]] : []),
+    ...(e.utm ? [['Campaign', e.utm] as [string, React.ReactNode]] : []),
+  ];
+  return (
+    <section className="sheet" style={{ marginBottom: 16 }}>
+      <h2>Enquiry</h2>
+      <table className="kv"><tbody>{rows.map(([k, v]) => <tr key={k}><th>{k}</th><td>{v}</td></tr>)}</tbody></table>
+      {(e.message || e.notes) && <p style={{ whiteSpace: 'pre-wrap', margin: '10px 0 0' }}>{e.message || e.notes}</p>}
+      {e.budgetEstimated && <p className="hint">The budget below is an estimate: the package’s starting price × adults.</p>}
+    </section>
   );
 }

@@ -14,14 +14,20 @@ const TICK: Record<string, string> = { sent: '✓', delivered: '✓✓', read: '
 export function WhatsAppInbox({ templates, ready }: { templates: WaTemplate[]; ready: boolean }) {
   const [convs, setConvs] = useState<Conv[]>([]);
   const [sel, setSel] = useState<string>('');
-  const [th, setTh] = useState<{ messages: Msg[]; windowOpenUntil: string } | null>(null);
+  const [th, setTh] = useState<{ messages: Msg[]; windowOpenUntil: string; lead?: { id: string; ref: string; title: string } | null } | null>(null);
   const [text, setText] = useState('');
   const [tpl, setTpl] = useState({ key: '', params: [] as string[] });
   const [busy, setBusy] = useState(false);
   const [newTo, setNewTo] = useState('');
   const toast = useToast();
   const loadConvs = useCallback(() => api<Conv[]>('/api/whatsapp/conversations').then(setConvs).catch(() => null), []);
-  const loadThread = useCallback((p: string) => api<{ messages: Msg[]; windowOpenUntil: string }>(`/api/whatsapp/conversations/${p}`).then(setTh).catch(() => null), []);
+  const loadThread = useCallback((p: string) => api<{ messages: Msg[]; windowOpenUntil: string; lead?: { id: string; ref: string; title: string } | null }>(`/api/whatsapp/conversations/${p}`).then(setTh).catch(() => null), []);
+  async function toOpportunity() {
+    if (!sel) return;
+    setBusy(true);
+    try { const r = await api<{ id: string; ref: string; linked: boolean }>(`/api/whatsapp/conversations/${sel}/opportunity`, 'POST'); toast(r.linked ? `Chat linked to ${r.ref || 'the opportunity'}.` : `Opportunity ${r.ref} created.`); await loadThread(sel); }
+    catch (e) { toast((e as Error).message, 'err'); } finally { setBusy(false); }
+  }
   useEffect(() => { loadConvs(); const t = setInterval(() => { loadConvs(); if (sel) loadThread(sel); }, 15000); return () => clearInterval(t); }, [loadConvs, loadThread, sel]);
   useEffect(() => { if (sel) loadThread(sel); }, [sel, loadThread]);
   const open = th?.windowOpenUntil ? Date.parse(th.windowOpenUntil) > Date.now() : false;
@@ -53,7 +59,8 @@ export function WhatsAppInbox({ templates, ready }: { templates: WaTemplate[]; r
       <section className="wa-thread">
         {!sel ? <p className="muted" style={{ padding: 20 }}>Choose a conversation.</p> : (
           <>
-            <div className="wa-head"><b>{cur?.name || `+${sel}`}</b> <span className="muted">+{sel}</span>{cur?.contactId && <Link className="linkbtn" href={`/contacts/${cur.contactId}`}>Open contact</Link>}</div>
+            <div className="wa-head"><b>{cur?.name || `+${sel}`}</b> <span className="muted">+{sel}</span>{cur?.contactId && <Link className="linkbtn" href={`/contacts/${cur.contactId}`}>Open contact</Link>}
+              <span style={{ flex: 1 }} />{th?.lead ? <Link className="btn" href={`/crm/${th.lead.id}`}>{th.lead.ref || 'Opportunity'}: {th.lead.title.slice(0, 40)}</Link> : <button className="btn" onClick={toOpportunity} disabled={busy || !(th?.messages ?? []).some((m) => m.direction === 'in')}>Create opportunity</button>}</div>
             <div className="wa-msgs">{(th?.messages ?? []).map((m) => (
               <div key={m.id} className={`wa-msg ${m.direction === 'in' ? 'in' : 'out'} ${m.status === 'failed' ? 'failed' : ''}`}>
                 <p>{m.body}</p>
