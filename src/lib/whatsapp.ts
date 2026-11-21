@@ -218,7 +218,10 @@ export async function thread(phone: string) {
   await col.updateMany({ phone: p, unread: true }, { $set: { unread: false } });
   const list = await col.find({ phone: p }).sort({ at: 1 }).limit(500).toArray();
   const lastIn = [...list].reverse().find((m) => m.direction === 'in');
+  const link = await (await db()).collection('waleads').findOne({ phone: p });
+  const lead = link ? await (await db()).collection('leads').findOne({ _id: link.leadId }, { projection: { ref: 1, title: 1 } }) : null;
   return {
+    lead: lead ? { id: String(lead._id), ref: String(lead.ref ?? ''), title: String(lead.title) } : null,
     messages: list.map((m) => ({ id: String(m._id), direction: String(m.direction), body: String(m.body), at: (m.at as Date).toISOString(), status: String(m.status), error: m.error ? String(m.error) : '', by: String(m.by ?? m.name ?? ''), template: m.template ? String(m.template) : '' })),
     windowOpenUntil: lastIn ? new Date((lastIn.at as Date).getTime() + 24 * 3600e3).toISOString() : '',
   };

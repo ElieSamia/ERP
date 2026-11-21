@@ -146,6 +146,7 @@ export async function leadFromRequest(id: string, by: string) {
   const r = await d.collection('requests').findOne({ _id: oid(id) });
   if (!r || r.leadId) return;
   const l = await d.collection('leads').insertOne({
+    ref: await (await import('./enquiries')).nextLeadRef(),
     title: String(r.title), contactId: String(r.contactId), stage: 'new', destination: String(r.destination || ''), travelDate: String(r.dateFrom || ''),
     pax: (Number(r.adults) || 0) + (Number(r.children) || 0), budget: Number(r.budget) || 0, notes: `Portal request ${r.ref}.${r.details ? '\n' + r.details : ''}`,
     requestId: id, createdAt: new Date(), createdBy: 'Portal',

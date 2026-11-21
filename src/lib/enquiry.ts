@@ -95,7 +95,7 @@ export async function receiveEnquiry(raw: unknown, ip: string): Promise<{ messag
     `${wantsNews ? 'Agreed to receive offers by email.' : 'Didn’t ask for marketing emails.'}${e.page ? ` Sent from ${e.page}.` : ''}${e.utm ? ` Campaign: ${e.utm}.` : ''}`,
     `Matched to ${byEmail || byPhone ? `the existing contact ${contact!.name}` : 'a new contact'}.`,
   ].join('\n');
-  const lead = await d.collection('leads').insertOne({ title, contactId: String(contact!._id), stage: 'new', destination: e.destination, travelDate: e.from, pax: e.adults + e.children, budget: e.budget, notes, source: 'website', createdAt: new Date(), createdBy: 'Website form' });
+  const lead = await d.collection('leads').insertOne({ ref: await (await import('./enquiries')).nextLeadRef(), title, contactId: String(contact!._id), stage: 'new', destination: e.destination, travelDate: e.from, pax: e.adults + e.children, budget: e.budget, notes, source: 'website', createdAt: new Date(), createdBy: 'Website form' });
   const leadId = String(lead.insertedId);
   await logActivity('lead', leadId, 'Website form', `Opportunity created from a website enquiry by ${e.name}.`);
 

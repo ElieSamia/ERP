@@ -30,6 +30,16 @@ export type Lead = {
   budget: number;
   notes: string;
   createdAt?: string;
+  /** OPP-0042, on opportunities created from version 10.4 on. */
+  ref?: string;
+  /** Where it came from: Website, a partner, WhatsApp, or empty when typed in. */
+  source?: string;
+  enquiry?: {
+    requestId: string; source: string; channel: string; formType: string; subject?: string; message?: string;
+    page?: { type: string; name: string; id: string; url: string; price: number; currency: string };
+    packageId?: string; packageName?: string; departureDate?: string; returnDate?: string; nights?: number; adults?: number; children?: number;
+    departureCity?: string; roomType?: string; rooms?: number; notes?: string; submittedAt?: string; utm?: string; budgetEstimated?: boolean; alsoVia?: string[];
+  };
 };
 
 export type Activity = { id: string; by: string; text: string; at: string };
