@@ -71,7 +71,7 @@ export const requestSchema = z.object({
   packageId: s(120), packageName: s(200), departureDate: isoDate, numberOfNights: n.default(0), adults: n.default(0), children: n.default(0),
   departureCity: s(120), roomType: s(40), rooms: n.default(0), notes: s(5000),
   submittedAt: s(60), utm: s(300), marketing: z.boolean().default(false),
-  page: z.object({ type: z.enum(['service', 'destination', 'package', 'contact', 'other']).default('other'), name: s(200), id: s(160), url: s(500), price: n.default(0), currency: s(8) }).default({}),
+  page: z.object({ type: z.enum(['service', 'destination', 'package', 'contact', 'other']).default('other'), name: s(200), id: s(160), url: s(500), price: n.default(0), currency: s(8), destination: s(120) }).default({}),
 }).superRefine((r, ctx) => {
   if (!(r.fullName || r.firstName)) ctx.addIssue({ code: 'custom', path: ['firstName'], message: 'firstName/lastName or fullName is required' });
   if (!r.email && (r.phone || r.customerPhone).replace(/\D/g, '').length < 7) ctx.addIssue({ code: 'custom', path: ['email'], message: 'email or phone is required' });
@@ -91,7 +91,7 @@ function shape(r: EnquiryRequest, sourceName: string) {
   const pax = Math.round(r.adults) + Math.round(r.children);
   const city = blankCity(r.departureCity);
   const pkgName = r.packageName || (r.page.type === 'package' ? r.page.name : '');
-  const destination = r.page.type === 'destination' ? r.page.name : '';
+  const destination = r.page.destination || (r.page.type === 'destination' ? r.page.name : '');
   const returnDate = r.departureDate && r.numberOfNights ? addDays(r.departureDate, Math.round(r.numberOfNights)) : '';
   const budget = r.page.price && r.adults ? Math.round(r.page.price * r.adults) : 0;
   const prefix = sourceName === 'Website' ? 'Website' : sourceName;

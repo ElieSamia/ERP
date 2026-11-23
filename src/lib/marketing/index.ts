@@ -45,12 +45,18 @@ export async function provider(which?: 'mailchimp' | 'brevo'): Promise<Provider>
 export type AudienceFilter = {
   types: string[]; country: string; city: string; destination: string;
   booked: '' | 'within' | 'not-within'; months: number; minSpent: number; portal: '' | 'yes' | 'no';
+  /** Contacts with any of these tags (empty = no tag condition). */
+  tags: string[];
+  /** Hand-picked contacts, always included. */
+  includeIds: string[];
+  /** Only the hand-picked contacts, ignoring the rules. */
+  onlyPicked: boolean;
 };
 export type Audience = { id: string; name: string; desc: string; filter: AudienceFilter; createdAt?: string };
-export const EMPTY_FILTER: AudienceFilter = { types: ['customer', 'agency', 'corporate'], country: '', city: '', destination: '', booked: '', months: 12, minSpent: 0, portal: '' };
+export const EMPTY_FILTER: AudienceFilter = { types: ['customer', 'agency', 'corporate'], country: '', city: '', destination: '', booked: '', months: 12, minSpent: 0, portal: '', tags: [], includeIds: [], onlyPicked: false };
 export const toAudience = (d: WithId<Document>): Audience => ({ id: String(d._id), name: d.name, desc: d.desc || '', filter: { ...EMPTY_FILTER, ...(d.filter || {}) }, createdAt: d.createdAt instanceof Date ? d.createdAt.toISOString() : d.createdAt });
 
-export type Member = { id: string; name: string; email: string; type: string; marketing: 'yes' | 'no'; spent: number; lastBooking: string };
+export type Member = { id: string; name: string; email: string; phone: string; type: string; marketing: 'yes' | 'no'; waMarketing: 'yes' | 'no'; spent: number; lastBooking: string; picked?: boolean };
 
 /**
  * Everyone an audience currently matches, with whether each can be emailed. Recalculated every time,
@@ -58,12 +64,19 @@ export type Member = { id: string; name: string; email: string; type: string; ma
  */
 export async function resolveAudience(f: AudienceFilter): Promise<Member[]> {
   const d = await db();
-  const q: Record<string, unknown> = { type: { $in: f.types.filter((t) => t !== 'supplier') } };
+  const picked = (f.includeIds ?? []).filter((x) => ObjectId.isValid(x)).map((x) => new ObjectId(x));
+  const rules: Record<string, unknown> = { type: { $in: f.types.filter((t) => t !== 'supplier') } };
+  const q = rules;
   const rx = (v: string) => ({ $regex: v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' });
   if (f.country.trim()) q.country = rx(f.country.trim());
   if (f.city.trim()) q.city = rx(f.city.trim());
   if (f.portal) q.portalAccess = f.portal === 'yes' ? 'yes' : { $ne: 'yes' };
-  const contacts = await d.collection('contacts').find(q, { projection: { name: 1, email: 1, type: 1, marketing: 1 } }).toArray();
+  if (f.tags?.length) q.tags = { $in: f.tags };
+  const proj = { projection: { name: 1, email: 1, phone: 1, type: 1, marketing: 1, waMarketing: 1 } };
+  const byRules = f.onlyPicked ? [] : await d.collection('contacts').find(q, proj).toArray();
+  const extra = picked.length ? await d.collection('contacts').find({ _id: { $in: picked }, type: { $ne: 'supplier' } }, proj).toArray() : [];
+  const pickedSet = new Set(extra.map((c) => String(c._id)));
+  const contacts = [...byRules.filter((c) => !pickedSet.has(String(c._id))), ...extra];
   const ids = contacts.map((c) => String(c._id));
   const bookings = await d.collection('bookings').find({ contactId: { $in: ids }, status: { $in: ['confirmed', 'ticketed', 'invoiced'] } }, { projection: { contactId: 1, bookingDate: 1, destinationName: 1, destination: 1, lines: 1 } }).toArray();
   const since = new Date(); since.setUTCMonth(since.getUTCMonth() - (f.months || 12));
@@ -74,28 +87,33 @@ export async function resolveAudience(f: AudienceFilter): Promise<Member[]> {
     const spent = r2(bs.reduce((s, b) => s + ((b.lines as Parameters<typeof sell>[0][]) || []).reduce((x, l) => x + sell(l), 0), 0));
     const last = bs.map((b) => String(b.bookingDate)).sort().at(-1) ?? '';
     return { c, bs, spent, last };
-  }).filter(({ bs, spent, last }) =>
+  }).filter(({ c, bs, spent, last }) => pickedSet.has(String(c._id)) || (
     (!dest || bs.some((b) => `${b.destinationName || ''} ${b.destination || ''}`.toLowerCase().includes(dest)))
     && (!f.minSpent || spent >= f.minSpent)
     && (f.booked !== 'within' || last >= sinceISO)
-    && (f.booked !== 'not-within' || !last || last < sinceISO),
-  ).map(({ c, spent, last }) => ({ id: String(c._id), name: String(c.name), email: String(c.email || ''), type: String(c.type), marketing: (c.marketing === 'no' ? 'no' : 'yes') as Member['marketing'], spent, lastBooking: last }))
+    && (f.booked !== 'not-within' || !last || last < sinceISO)),
+  ).map(({ c, spent, last }) => ({ id: String(c._id), name: String(c.name), email: String(c.email || ''), phone: String(c.phone || ''), type: String(c.type), marketing: (c.marketing === 'no' ? 'no' : 'yes') as Member['marketing'], waMarketing: (c.waMarketing === 'yes' ? 'yes' : 'no') as Member['waMarketing'], spent, lastBooking: last, picked: pickedSet.has(String(c._id)) }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 /** Who a campaign may actually reach: an email address and not unsubscribed. */
 export const reachable = (m: Member[]) => m.filter((x) => x.email && x.marketing === 'yes');
+/** WhatsApp offers: a phone with country code and the customer’s WhatsApp consent. */
+export const reachableWa = (m: Member[]) => m.filter((x) => x.waMarketing === 'yes' && /^[1-9]\d{7,14}$/.test(x.phone.replace(/\D/g, '').replace(/^00/, '')));
 
 /* ---------- Campaigns ---------- */
 export type Campaign = {
   id: string; name: string; subject: string; preheader: string; heading: string; body: string; imageUrl: string;
-  buttonText: string; buttonUrl: string; audienceId: string; status: 'draft' | 'scheduled' | 'sent' | 'failed';
+  buttonText: string; buttonUrl: string; audienceId: string; status: 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed';
   provider: string; providerId: string; scheduledAt: string; sentAt: string; recipients: number; stats: Stats | null; statsAt: string; error: string; createdBy: string; createdAt?: string;
+  channel: 'email' | 'whatsapp'; waTemplate: string; waLanguage: string; waParams: string[]; waButton: string;
+  waStats?: { sent: number; delivered: number; read: number; failed: number; replies: number; stops: number; pending: number } | null;
 };
 const iso = (v: unknown) => (v instanceof Date ? v.toISOString() : String(v ?? ''));
 export const toCampaign = (d: WithId<Document>): Campaign => ({
   id: String(d._id), name: d.name, subject: d.subject || '', preheader: d.preheader || '', heading: d.heading || '', body: d.body || '', imageUrl: d.imageUrl || '',
   buttonText: d.buttonText || '', buttonUrl: d.buttonUrl || '', audienceId: d.audienceId || '', status: d.status || 'draft', provider: d.provider || '', providerId: d.providerId || '',
   scheduledAt: iso(d.scheduledAt), sentAt: iso(d.sentAt), recipients: d.recipients ?? 0, stats: d.stats ?? null, statsAt: iso(d.statsAt), error: d.error || '', createdBy: d.createdBy || '', createdAt: iso(d.createdAt),
+  channel: d.channel === 'whatsapp' ? 'whatsapp' : 'email', waTemplate: d.waTemplate || '', waLanguage: d.waLanguage || '', waParams: d.waParams || [], waButton: d.waButton || '', waStats: d.waStats ?? null,
 });
 export async function getCampaign(id: string) {
   if (!ObjectId.isValid(id)) return null;
@@ -150,4 +168,53 @@ export async function refreshStats(c: Campaign, by: string) {
   }
   await d.collection('campaigns').updateOne({ _id: doc._id }, { $set: { stats: st, statsAt: new Date(), ...(doc.status === 'scheduled' && st.sent > 0 ? { status: 'sent', sentAt: new Date() } : {}) } });
   return (await getCampaign(c.id))!;
+}
+
+/* ---------- WhatsApp campaigns ---------- */
+export const STOP_WORDS = /^\s*(stop|unsubscribe|cancel|no more|الغاء|إلغاء|توقف|ستوب)\s*[.!]?\s*$/i;
+const fill = (p: string, name: string) => p.replace(/\{name\}/gi, name.split(' ')[0] || name);
+
+/** Queues every recipient once; sending then runs in batches (see waBatch), so large lists fit the server's time limits. */
+export async function queueWaCampaign(c: Campaign, to: Member[], by: string) {
+  const d = await db();
+  await d.collection('waqueue').insertMany(to.map((m) => ({ campaignId: c.id, phone: m.phone.replace(/\D/g, '').replace(/^00/, ''), name: m.name, contactId: m.id, status: 'pending', at: new Date() })));
+  await d.collection('campaigns').updateOne({ _id: new ObjectId(c.id) }, { $set: { status: 'sending', provider: 'whatsapp', recipients: to.length, sentBy: by, error: '', recipientEmails: [] } });
+}
+/** Sends up to 25 queued messages; the screen calls it again until nothing is left. */
+export async function waBatch(id: string, by: string) {
+  const d = await db();
+  const c = await getCampaign(id);
+  if (!c) throw new ProviderError('Campaign not found.');
+  const { sendTemplate } = await import('../whatsapp');
+  const q = d.collection('waqueue');
+  for (let i = 0; i < 25; i++) {
+    const job = await q.findOneAndUpdate({ campaignId: id, status: 'pending' }, { $set: { status: 'working', claimedAt: new Date() } }, { returnDocument: 'after' });
+    if (!job) break;
+    try {
+      await sendTemplate({ to: String(job.phone), template: c.waTemplate, language: c.waLanguage, params: c.waParams.map((p) => fill(p, String(job.name))), urlSuffix: c.waButton || undefined, by: `${by} (campaign)`, ref: { model: 'campaign', id } });
+      await q.updateOne({ _id: job._id }, { $set: { status: 'sent' } });
+    } catch (e) {
+      await q.updateOne({ _id: job._id }, { $set: { status: 'failed', error: (e as Error).message } });
+    }
+  }
+  const [pending, working, sent, failed] = await Promise.all(['pending', 'working', 'sent', 'failed'].map((s) => q.countDocuments({ campaignId: id, status: s })));
+  if (!pending && !working && c.status === 'sending') await d.collection('campaigns').updateOne({ _id: new ObjectId(id) }, { $set: { status: 'sent', sentAt: new Date() } });
+  return { pending, sent, failed, done: !pending && !working };
+}
+/** Delivery, reads, replies and opt-outs, from the WhatsApp messages this campaign sent. */
+export async function waStats(id: string) {
+  const d = await db();
+  const msgs = await d.collection('wamessages').find({ 'ref.model': 'campaign', 'ref.id': id, direction: 'out' }, { projection: { phone: 1, status: 1, at: 1 } }).toArray();
+  const pending = await d.collection('waqueue').countDocuments({ campaignId: id, status: { $in: ['pending', 'working'] } });
+  const phones = [...new Set(msgs.map((m) => String(m.phone)))];
+  // WhatsApp stamps replies to the whole second: allow for that rounding.
+  const since = msgs.reduce((t, m) => Math.min(t, (m.at as Date).getTime()), Date.now()) - 1000;
+  const ins = phones.length ? await d.collection('wamessages').find({ direction: 'in', phone: { $in: phones }, at: { $gte: new Date(since) } }, { projection: { phone: 1, body: 1 } }).toArray() : [];
+  const st = {
+    sent: msgs.filter((m) => m.status !== 'failed').length, delivered: msgs.filter((m) => ['delivered', 'read'].includes(String(m.status))).length,
+    read: msgs.filter((m) => m.status === 'read').length, failed: msgs.filter((m) => m.status === 'failed').length + (await d.collection('waqueue').countDocuments({ campaignId: id, status: 'failed' })) - msgs.filter((m) => m.status === 'failed').length,
+    replies: new Set(ins.filter((m) => !STOP_WORDS.test(String(m.body))).map((m) => String(m.phone))).size, stops: new Set(ins.filter((m) => STOP_WORDS.test(String(m.body))).map((m) => String(m.phone))).size, pending,
+  };
+  await d.collection('campaigns').updateOne({ _id: new ObjectId(id) }, { $set: { waStats: st, statsAt: new Date() } });
+  return st;
 }

@@ -10,6 +10,9 @@ export type Contact = {
   country: string;
   creditLimit: number;
   marketing: 'yes' | 'no';
+  /** WhatsApp offers need their own consent (Meta's rule); off unless the customer agreed. */
+  waMarketing?: 'yes' | 'no';
+  tags?: string[];
   portalAccess: 'yes' | 'no';
   notes: string;
   createdAt?: string;

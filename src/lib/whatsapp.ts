@@ -105,7 +105,7 @@ async function contactFor(phone: string) {
   const digits = waNumber(phone);
   // Phones are stored as typed (+961 1 998 300): match the last 7 digits with any spaces or dashes between them.
   const pattern = digits.slice(-7).split('').join('\\D*');
-  const cs = await (await db()).collection('contacts').find({ phone: { $regex: pattern } }, { projection: { phone: 1, name: 1 } }).toArray();
+  const cs = await (await db()).collection('contacts').find({ phone: { $regex: pattern } }, { projection: { phone: 1, name: 1, waMarketing: 1 } }).toArray();
   return cs.find((c) => waNumber(String(c.phone)) === digits) ?? null;
 }
 
@@ -180,6 +180,12 @@ export async function handleWebhook(payload: Hook) {
       if (await col.findOne({ waId: m.id })) continue; // Meta can deliver the same event twice
       const c = await contactFor(m.from);
       const body = m.text?.body ?? m.button?.text ?? m.interactive?.button_reply?.title ?? (m.document ? `[Document${m.document.filename ? `: ${m.document.filename}` : ''}]` : `[${m.type}]`);
+      if (c && /^\s*(stop|unsubscribe|cancel|no more|الغاء|إلغاء|توقف|ستوب)\s*[.!]?\s*$/i.test(body) && c.waMarketing !== 'no') {
+        // "STOP" to an offer: no more WhatsApp offers to this contact (Meta's opt-out rule).
+        await (await db()).collection('contacts').updateOne({ _id: c._id }, { $set: { waMarketing: 'no' } });
+        const { logActivity } = await import('./activity');
+        await logActivity('contact', String(c._id), 'WhatsApp', `Replied “${body.trim()}”: WhatsApp offers turned off.`);
+      }
       await col.insertOne({ phone: waNumber(m.from), contactId: c ? String(c._id) : null, direction: 'in', type: m.type, body, waId: m.id, status: 'received',
         name: v.contacts?.find((x) => x.wa_id === m.from)?.profile?.name ?? '', at: new Date(Number(m.timestamp) * 1000 || Date.now()), unread: true });
     }

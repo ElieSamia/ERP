@@ -11,6 +11,8 @@ export const contactSchema = z.object({
   country: text,
   creditLimit: z.coerce.number().min(0, 'The credit limit can’t be negative.').default(0),
   marketing: z.enum(['yes', 'no']).default('yes'),
+  waMarketing: z.enum(['yes', 'no']).default('no'),
+  tags: z.array(z.string().trim().min(1).max(30)).max(20).default([]).transform((t) => [...new Set(t.map((x) => x.replace(/\s+/g, ' ')))]),
   portalAccess: z.enum(['yes', 'no']).default('no'),
   notes: text,
 });
@@ -207,11 +209,12 @@ export const reminderSchema = z.object({
 
 /* ---------- Marketing ---------- */
 export const filterSchema = z.object({
-  types: z.array(z.enum(['customer', 'agency', 'corporate'])).min(1, 'Choose at least one type of contact.'),
+  types: z.array(z.enum(['customer', 'agency', 'corporate'])).default([]),
   country: z.string().trim().max(80).default(''), city: z.string().trim().max(80).default(''), destination: z.string().trim().max(80).default(''),
   booked: z.enum(['', 'within', 'not-within']).default(''), months: z.coerce.number().int().min(1).max(120).default(12),
   minSpent: z.coerce.number().min(0).default(0), portal: z.enum(['', 'yes', 'no']).default(''),
-});
+  tags: z.array(z.string().trim().max(30)).max(20).default([]), includeIds: z.array(z.string().max(40)).max(5000).default([]), onlyPicked: z.boolean().default(false),
+}).refine((f) => f.onlyPicked || f.types.length > 0, { message: 'Choose at least one type of contact.' });
 export const audienceSchema = z.object({ name: z.string().trim().min(1, 'Name the audience.').max(100), desc: z.string().trim().max(300).default(''), filter: filterSchema });
 
 export const campaignSchema = z.object({
@@ -224,6 +227,9 @@ export const campaignSchema = z.object({
   buttonText: z.string().trim().max(60).default(''),
   buttonUrl: z.string().trim().max(500).refine((v) => !v || /^https?:\/\//.test(v), 'Use a link starting with https://').default(''),
   audienceId: z.string().max(40).default(''),
+  channel: z.enum(['email', 'whatsapp']).default('email'),
+  waTemplate: z.string().max(512).default(''), waLanguage: z.string().max(20).default(''),
+  waParams: z.array(z.string().max(1000)).max(10).default([]), waButton: z.string().max(300).default(''),
 });
 
 /* ---------- Rates desk ---------- */
