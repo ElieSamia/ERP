@@ -8,7 +8,9 @@ import { nextLeadRef } from '@/lib/enquiries';
 export async function GET(req: Request) {
   return handle(async () => {
     await requireUser();
-    return listLeads(new URL(req.url).searchParams.get('q')?.trim() || undefined);
+    const sp = new URL(req.url).searchParams;
+    const f = Object.fromEntries(['source', 'created', 'travel', 'ctype', 'dest', 'attention', 'booking'].map((k) => [k, sp.get(k) ?? undefined]));
+    return listLeads(sp.get('q')?.trim() || undefined, f);
   });
 }
 

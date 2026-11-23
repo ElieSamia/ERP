@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { handle, HttpError, oid, requireUser } from '@/lib/api';
-import { campaignHtml, getAudience, getCampaign, getMarketingSettings, provider, reachable, resolveAudience } from '@/lib/marketing';
+import { campaignHtml, getAudience, getCampaign, getMarketingSettings, provider, queueWaCampaign, reachable, reachableWa, resolveAudience } from '@/lib/marketing';
+import { getWaSettings } from '@/lib/whatsapp';
 import { ProviderError } from '@/lib/marketing/providers';
 import { getCompany } from '@/lib/queries';
 
@@ -20,6 +21,24 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const c = await getCampaign(id);
     if (!c) throw new HttpError(404, 'Campaign not found.');
     if (c.status !== 'draft') throw new HttpError(409, 'This campaign was already sent or scheduled.');
+    if (c.channel === 'whatsapp') {
+      // WhatsApp: an approved template to contacts who agreed to WhatsApp offers; sent in batches from the screen.
+      if (scheduleAt) throw new HttpError(400, 'WhatsApp campaigns are sent now; scheduling isn’t available for them.');
+      const w = await getWaSettings();
+      if (!w.enabled || !w.hasToken) throw new HttpError(400, 'Connect WhatsApp under Settings → WhatsApp Business first.');
+      const t = w.templates.find((x) => x.name === c.waTemplate && x.language === c.waLanguage);
+      if (!t) throw new HttpError(400, 'Choose an approved WhatsApp template.');
+      if (t.status !== 'APPROVED') throw new HttpError(400, `Meta hasn’t approved “${t.name}” yet.`);
+      if (t.urlButton && !c.waButton) throw new HttpError(400, 'This template has a link button: fill in the link’s ending.');
+      const aud = c.audienceId ? await getAudience(c.audienceId) : null;
+      if (!aud) throw new HttpError(400, 'Choose who receives this campaign.');
+      const to = reachableWa(await resolveAudience(aud.filter));
+      if (!to.length) throw new HttpError(400, 'Nobody in this audience has agreed to WhatsApp offers with a valid phone number.');
+      const lock = await (await db()).collection('campaigns').updateOne({ _id: oid(id), status: 'draft' }, { $set: { status: 'queuing', audienceName: aud.name } });
+      if (!lock.modifiedCount) throw new HttpError(409, 'This campaign is already being sent.');
+      await queueWaCampaign(c, to, user.name);
+      return getCampaign(id);
+    }
     if (!c.subject || !c.heading || !c.body) throw new HttpError(400, 'Add a subject, a heading and the message before sending.');
     const s = await getMarketingSettings();
     if (!s.provider) throw new HttpError(400, 'Connect Mailchimp or Brevo under Marketing → Connection first.');
