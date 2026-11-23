@@ -7,10 +7,10 @@ import { fmtDate, money } from '@/lib/constants';
 import type { Audience, AudienceFilter, Member } from '@/lib/marketing';
 import { useToast } from './Toast';
 
-type Preview = { total: number; reachable: number; noEmail: number; unsubscribed: number; members: Member[] };
+type Preview = { total: number; reachable: number; waReachable: number; noEmail: number; unsubscribed: number; members: Member[]; picked: { id: string; name: string }[] };
 const TYPES: [string, string][] = [['customer', 'Individual customers'], ['agency', 'Agencies'], ['corporate', 'Corporate accounts']];
 
-export function AudienceEditor({ initial, empty }: { initial?: Audience; empty: AudienceFilter }) {
+export function AudienceEditor({ initial, empty, allTags = [] }: { initial?: Audience; empty: AudienceFilter; allTags?: string[] }) {
   const router = useRouter();
   const toast = useToast();
   const [name, setName] = useState(initial?.name ?? '');
@@ -22,7 +22,7 @@ export function AudienceEditor({ initial, empty }: { initial?: Audience; empty: 
   const set = <K extends keyof AudienceFilter>(k: K, v: AudienceFilter[K]) => setF({ ...f, [k]: v });
   useEffect(() => {
     clearTimeout(timer.current);
-    if (!f.types.length) { setP(null); return; }
+    if (!f.types.length && !f.onlyPicked && !(f.includeIds ?? []).length) { setP(null); return; }
     timer.current = setTimeout(() => { api<Preview>('/api/marketing/audiences/preview', 'POST', { filter: f }).then(setP).catch(() => null); }, 300);
     return () => clearTimeout(timer.current);
   }, [f]);
@@ -49,10 +49,15 @@ export function AudienceEditor({ initial, empty }: { initial?: Audience; empty: 
             <label className="fld wide" htmlFor="a-n"><span>Name</span><input id="a-n" value={name} onChange={(e) => setName(e.target.value)} placeholder="Agencies in Lebanon" /></label>
             <label className="fld wide" htmlFor="a-d"><span>Description (optional)</span><input id="a-d" value={desc} onChange={(e) => setDesc(e.target.value)} /></label>
           </div>
+          <label className="tgl" style={{ margin: '6px 0 4px' }}><input type="checkbox" checked={!!f.onlyPicked} onChange={(e) => set('onlyPicked', e.target.checked)} /> Only hand-picked contacts (ignore the rules below)</label>
+          {(p?.picked ?? []).length > 0 && <div style={{ margin: '6px 0' }}><span className="muted" style={{ fontSize: 13 }}>Hand-picked ({p!.picked.length}), always included:</span><div className="chips" style={{ marginTop: 4 }}>{p!.picked.map((x) => <span key={x.id} className="chip on">{x.name} <button className="linkbtn" aria-label={`Remove ${x.name}`} onClick={() => set('includeIds', (f.includeIds ?? []).filter((y) => y !== x.id))}>×</button></span>)}</div></div>}
+          <p className="hint" style={{ marginTop: 0 }}>Add hand-picked contacts from <b>Contacts</b>: tick them, then <b>Add to audience</b>.</p>
           <h3 className="sub3">Who’s in it</h3>
           <fieldset className="fld wide" style={{ border: 0, padding: 0, margin: '0 0 10px' }}><legend><span>Type of contact</span></legend>
             <div className="chips">{TYPES.map(([k, l]) => <label key={k} className={`chip ${f.types.includes(k) ? 'on' : ''}`}><input type="checkbox" className="sr" checked={f.types.includes(k)} onChange={(e) => set('types', e.target.checked ? [...f.types, k] : f.types.filter((t) => t !== k))} />{l}</label>)}</div>
           </fieldset>
+          {allTags.length > 0 && <fieldset className="fld wide" style={{ border: 0, padding: 0, margin: '0 0 10px' }}><legend><span>With any of these tags</span></legend>
+            <div className="chips">{allTags.map((t) => <label key={t} className={`chip ${(f.tags ?? []).includes(t) ? 'on' : ''}`}><input type="checkbox" className="sr" checked={(f.tags ?? []).includes(t)} onChange={(e) => set('tags', e.target.checked ? [...(f.tags ?? []), t] : (f.tags ?? []).filter((x) => x !== t))} />#{t}</label>)}</div></fieldset>}
           <div className="grid">
             <label className="fld" htmlFor="a-co"><span>Country contains</span><input id="a-co" value={f.country} onChange={(e) => set('country', e.target.value)} placeholder="Lebanon" /></label>
             <label className="fld" htmlFor="a-ci"><span>City contains</span><input id="a-ci" value={f.city} onChange={(e) => set('city', e.target.value)} placeholder="Beirut" /></label>
@@ -68,10 +73,11 @@ export function AudienceEditor({ initial, empty }: { initial?: Audience; empty: 
         </section>
         <section className="sheet">
           <h2>Matches now</h2>
-          {!p ? <p className="muted">{f.types.length ? 'Counting…' : 'Choose at least one type of contact.'}</p> : (
+          {!p ? <p className="muted">{f.types.length || f.onlyPicked ? 'Counting…' : 'Choose at least one type of contact.'}</p> : (
             <>
               <div className="kpis">
-                <div className="kpi"><span>Will receive campaigns</span><b>{p.reachable}</b></div>
+                <div className="kpi"><span>Email offers</span><b>{p.reachable}</b></div>
+                <div className="kpi"><span>WhatsApp offers</span><b>{p.waReachable}</b></div>
                 <div className="kpi"><span>Unsubscribed</span><b>{p.unsubscribed}</b></div>
                 <div className="kpi"><span>No email address</span><b>{p.noEmail}</b></div>
               </div>

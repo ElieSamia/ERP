@@ -9,7 +9,7 @@ import { TextField, NumberField, SelectField, TextArea } from './Fields';
 import { ActivityPanel } from './ActivityPanel';
 import { useToast } from './Toast';
 
-const EMPTY: Omit<Contact, 'id'> = { name: '', type: 'customer', email: '', phone: '', city: '', country: 'Lebanon', creditLimit: 0, marketing: 'yes', portalAccess: 'no', notes: '' };
+const EMPTY: Omit<Contact, 'id'> = { name: '', type: 'customer', email: '', phone: '', city: '', country: 'Lebanon', creditLimit: 0, marketing: 'yes', waMarketing: 'no', tags: [], portalAccess: 'no', notes: '' };
 
 export function ContactForm({ initial, portalUsers }: { initial?: Contact; portalUsers?: number }) {
   const router = useRouter();
@@ -66,7 +66,9 @@ export function ContactForm({ initial, portalUsers }: { initial?: Contact; porta
               <TextField id="f-city" label="City" value={c.city} onChange={(v) => set('city', v)} />
               <TextField id="f-country" label="Country" value={c.country} onChange={(v) => set('country', v)} />
               {(c.type === 'agency' || c.type === 'corporate') && <NumberField id="f-credit" label="Credit limit (USD)" step="0.01" value={c.creditLimit} onChange={(v) => set('creditLimit', v)} />}
-              {c.type !== 'supplier' && <SelectField id="f-marketing" label="Marketing messages" value={c.marketing} options={[['yes', 'Subscribed'], ['no', 'Unsubscribed']]} onChange={(v) => set('marketing', v as 'yes' | 'no')} />}
+              {c.type !== 'supplier' && <SelectField id="f-marketing" label="Email offers" value={c.marketing} options={[['yes', 'Subscribed'], ['no', 'Unsubscribed']]} onChange={(v) => set('marketing', v as 'yes' | 'no')} />}
+              {c.type !== 'supplier' && <SelectField id="f-wamkt" label="WhatsApp offers (only with the customer’s consent)" value={c.waMarketing ?? 'no'} options={[['yes', 'Agreed'], ['no', 'Not agreed']]} onChange={(v) => set('waMarketing', v as 'yes' | 'no')} />}
+              <TextField id="f-tags" label="Tags (separated by commas)" wide value={(c.tags ?? []).join(', ')} onChange={(v) => set('tags', v.split(',').map((x) => x.trim()).filter(Boolean))} />
               <label className="fld" htmlFor="f-portal"><span>Portal access</span>
                 <span className="chk"><input id="f-portal" type="checkbox" checked={c.portalAccess === 'yes'} onChange={(e) => set('portalAccess', e.target.checked ? 'yes' : 'no')} />Can sign in to the portal</span>
               </label>
