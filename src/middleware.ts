@@ -10,6 +10,7 @@ const PUBLIC = [
   '/api/auth/two-step', // the second sign-in step, which has its own short ticket
   '/api/whatsapp/webhook', // Meta's calls, checked by signature instead of a session
   '/api/public', // website enquiries, checked by site key and origin
+  '/api/cron', // scheduled jobs (daily backup), checked by CRON_SECRET
   '/enquire', // the hosted enquiry form
 ];
 const isUnder = (path: string, p: string) => path === p || path.startsWith(p + '/');
