@@ -13,7 +13,7 @@ const layout = z.object({
 const schema = z.object({
   // PNG, JPEG or WebP only (no SVG, which can carry scripts), already shrunk in the browser.
   logo: z.string().max(400_000, 'That logo is too large. Use a smaller image.').refine((v) => !v || /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(v), 'Use a PNG, JPG or WebP image.'),
-  docs: z.record(z.enum(['confirm', 'vouchers', 'invoice', 'receipt', 'po', 'voucher', 'statement', 'supstatement']), layout),
+  docs: z.record(z.enum(['confirm', 'vouchers', 'invoice', 'receipt', 'po', 'voucher', 'statement', 'supstatement', 'credit', 'refund']), layout),
 });
 
 export async function GET() {

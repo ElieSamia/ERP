@@ -9,7 +9,7 @@ import { mailReady } from '@/lib/mail';
 import { getWaSettings } from '@/lib/whatsapp';
 
 const schema = z.object({
-  kind: z.enum(['confirm', 'vouchers', 'invoice', 'receipt', 'po', 'voucher', 'statement']),
+  kind: z.enum(['confirm', 'vouchers', 'invoice', 'receipt', 'po', 'voucher', 'statement', 'credit', 'refund']),
   id: z.string().min(1),
   pid: z.string().optional(),
   prices: z.boolean().optional(),
