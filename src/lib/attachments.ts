@@ -20,8 +20,8 @@ function blobStoreId() {
   const key = Object.keys(process.env).find((k) => /^BLOB\w*_STORE_ID$/.test(k) && process.env[k]);
   return key ? process.env[key] : undefined;
 }
-const storeOpts = () => { const storeId = blobStoreId(); return storeId ? { storeId } : {}; };
-const storageReady = () => !!(process.env.BLOB_READ_WRITE_TOKEN || blobStoreId());
+export const storeOpts = () => { const storeId = blobStoreId(); return storeId ? { storeId } : {}; };
+export const storageReady = () => !!(process.env.BLOB_READ_WRITE_TOKEN || blobStoreId());
 type StoredDoc = BookingDoc & { pathname?: string };
 
 /** Reads an upload, answering with a clear message instead of a server error when the request isn't a file upload. */
