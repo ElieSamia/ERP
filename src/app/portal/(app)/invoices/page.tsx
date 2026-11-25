@@ -11,7 +11,7 @@ export default async function PortalInvoices() {
   const today = todayISO();
   const list = (await listInvoices({})).filter((i) => i.contactId === ctx.contactId && i.status !== 'draft');
   const open = list.filter((i) => i.status === 'posted');
-  const due = open.reduce((s, i) => s + docTotals(i.lines, i.payments).balance, 0);
+  const due = open.reduce((s, i) => s + docTotals(i.lines, i.payments).balance / (i.rate || 1), 0);
   const late = open.filter((i) => i.dueDate < today);
   return (
     <>
@@ -19,7 +19,7 @@ export default async function PortalInvoices() {
         {ctx.perms.statement === 'yes' && <div className="cp-actions"><Link className="btn" href="/portal/statement">Statement of account</Link></div>}</div>
       <div className="kpis">
         <div className="kpi"><span>Balance due</span><b>{money(due)}</b></div>
-        <div className="kpi"><span>Overdue</span><b>{money(late.reduce((s, i) => s + docTotals(i.lines, i.payments).balance, 0))}</b>{late.length > 0 && <span className="late-t">{late.length} invoice{late.length === 1 ? '' : 's'}</span>}</div>
+        <div className="kpi"><span>Overdue</span><b>{money(late.reduce((s, i) => s + docTotals(i.lines, i.payments).balance / (i.rate || 1), 0))}</b>{late.length > 0 && <span className="late-t">{late.length} invoice{late.length === 1 ? '' : 's'}</span>}</div>
         <div className="kpi"><span>Invoices</span><b>{list.length}</b></div>
       </div>
       {list.length === 0 ? <div className="empty">No invoices yet.</div> : (
@@ -29,7 +29,7 @@ export default async function PortalInvoices() {
             <tr key={i.id}><td><Link href={`/portal/invoices/${i.id}`}><strong>{i.number}</strong></Link></td><td>{i.bookingRef ?? ''}</td>
               <td>{fmtDate(i.date)}</td><td className={overdue ? 'overdue' : ''}>{fmtDate(i.dueDate)}</td>
               <td>{i.status === 'paid' ? <span className="badge b-green">Paid</span> : overdue ? <span className="badge b-red">Overdue</span> : <span className="badge b-amber">Open</span>}</td>
-              <td className="num">{money(t.total)}</td><td className="num"><b>{money(t.balance)}</b></td></tr>); })}
+              <td className="num">{money(t.total, i.currency)}</td><td className="num"><b>{money(t.balance, i.currency)}</b></td></tr>); })}
           </tbody></table></div>
       )}
       <p className="hint">To pay, use the bank details on the invoice and quote its number. Payments appear here once we record them.</p>

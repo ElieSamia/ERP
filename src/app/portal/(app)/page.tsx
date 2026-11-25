@@ -12,7 +12,7 @@ export default async function PortalHome() {
   const [s, reqs, bks, invs] = await Promise.all([getPortalSettings(), visibleRequests(ctx), visibleBookings(ctx), p.invoices === 'yes' ? listInvoices({}) : Promise.resolve([])]);
   const today = todayISO();
   const mine = invs.filter((i) => i.contactId === ctx.contactId && i.status === 'posted');
-  const due = mine.reduce((sum, i) => sum + docTotals(i.lines, i.payments).balance, 0);
+  const due = mine.reduce((sum, i) => sum + docTotals(i.lines, i.payments).balance / (i.rate || 1), 0);
   const late = mine.filter((i) => i.dueDate < today);
   const quotes = reqs.filter((r) => r.status === 'quoted' && p.acceptQuotes === 'yes');
   const approvals = reqs.filter((r) => r.status === 'approval' && p.approveQuotes === 'yes');

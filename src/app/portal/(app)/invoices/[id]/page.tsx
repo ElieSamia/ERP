@@ -30,9 +30,9 @@ export default async function PortalInvoice({ params }: { params: Promise<{ id: 
           <tbody>{inv.lines.map((l) => <tr key={l.id}><td>{l.desc}</td><td>{l.vat}%</td><td className="num">{money(l.amount)}</td><td className="num">{money(r2(l.amount * l.vat / 100))}</td></tr>)}</tbody>
         </table></div>
         <div className="totals">
-          <div><span>Untaxed amount</span><b>{money(t.untaxed)}</b></div><div><span>VAT</span><b>{money(t.vat)}</b></div>
-          <div className="grand"><span>Total</span><b>{money(t.total)}</b></div>
-          {t.paid > 0 && <><div><span>Paid</span><b>{money(t.paid)}</b></div><div className="grand"><span>Balance due</span><b>{money(t.balance)}</b></div></>}
+          <div><span>Untaxed amount</span><b>{money(t.untaxed, inv.currency)}</b></div><div><span>VAT</span><b>{money(t.vat, inv.currency)}</b></div>
+          <div className="grand"><span>Total</span><b>{money(t.total, inv.currency)}</b></div>
+          {t.paid > 0 && <><div><span>Paid</span><b>{money(t.paid, inv.currency)}</b></div><div className="grand"><span>Balance due</span><b>{money(t.balance, inv.currency)}</b></div></>}
         </div>
       </section>
       <section className="sheet">
@@ -40,7 +40,7 @@ export default async function PortalInvoice({ params }: { params: Promise<{ id: 
         {inv.payments.length === 0 ? <p className="muted" style={{ margin: 0 }}>No payments recorded yet.</p> : (
           <div className="table-wrap"><table className="lines">
             <thead><tr><th>Receipt</th><th>Date</th><th>Method</th><th className="num">Amount</th><th><span className="sr">Print</span></th></tr></thead>
-            <tbody>{inv.payments.map((p) => <tr key={p.id}><td>{p.ref}</td><td>{fmtDate(p.date)}</td><td>{label(PAY_METHODS, p.method)}</td><td className="num">{money(p.amount)}</td>
+            <tbody>{inv.payments.map((p) => <tr key={p.id} style={p.cancelled ? { textDecoration: 'line-through', opacity: .6 } : undefined}><td>{p.ref}</td><td>{fmtDate(p.date)}</td><td>{label(PAY_METHODS, p.method)}</td><td className="num">{money(p.amount, inv.currency)}</td>
               <td style={{ textAlign: 'right' }}><Link className="btn" href={`/portal/print/receipt/${inv.id}?pid=${p.id}`} target="_blank">Receipt</Link></td></tr>)}</tbody>
           </table></div>
         )}
