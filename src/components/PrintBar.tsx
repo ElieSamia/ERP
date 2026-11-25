@@ -18,6 +18,8 @@ const TEMPLATES: Record<DocKind, { subject: string; body: string }> = {
   vouchers: { subject: 'Hotel vouchers for booking {number}', body: 'Dear {name},\n\nYour hotel vouchers for booking {number} are ready:\n{link}\n\nPlease show them at check-in.\n\nThe link works until {until}.\n\nHave a great trip,\n{company}' },
   invoice: { subject: 'Invoice {number} from {company}', body: 'Dear {name},\n\nPlease find your invoice {number} here:\n{link}\n\nThe link works until {until}.\n\nKind regards,\n{company}' },
   receipt: { subject: 'Payment receipt {number}', body: 'Dear {name},\n\nThank you for your payment. Your receipt {number} is here:\n{link}\n\nThe link works until {until}.\n\nKind regards,\n{company}' },
+  credit: { subject: 'Credit note {number} from {company}', body: 'Dear {name},\n\nPlease find your credit note {number} here:\n{link}\n\nThe link works until {until}.\n\nKind regards,\n{company}' },
+  refund: { subject: 'Refund {number} from {company}', body: 'Dear {name},\n\nPlease find the details of your refund {number} here:\n{link}\n\nThe link works until {until}.\n\nKind regards,\n{company}' },
   po: { subject: 'Purchase order {number} from {company}', body: 'Hello,\n\nPlease find our purchase order {number} here:\n{link}\n\nKindly confirm availability.\n\nThe link works until {until}.\n\nRegards,\n{company}' },
   statement: { subject: 'Statement of account from {company}', body: 'Dear {name},\n\nYour statement of account is here:\n{link}\n\nThe link works until {until}.\n\nKind regards,\n{company}' },
   supstatement: { subject: 'Statement from {company}', body: 'Hello,\n\nHere is your statement with us, showing your bills, our payments and what is still owed:\n{link}\n\nThe link works until {until}.\n\nRegards,\n{company}' },

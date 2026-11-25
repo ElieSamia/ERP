@@ -8,6 +8,7 @@ import type { Option, Purchase } from '@/lib/types';
 import { TextField, TextArea, SelectField, ReadOnly } from './Fields';
 import { TaxLines } from './TaxLines';
 import { PaymentBox } from './PaymentBox';
+import { CreditPanel } from './CreditPanel';
 import { ActivityPanel } from './ActivityPanel';
 import { DocumentsPanel, uploadDoc } from './DocumentsPanel';
 import { Modal } from './Modal';
@@ -18,7 +19,7 @@ type Draft = Pick<Purchase, 'supplierId' | 'orderDate' | 'billRef' | 'billDate' 
 const pick = (p: Purchase): Draft => ({ supplierId: p.supplierId, orderDate: p.orderDate, billRef: p.billRef, billDate: p.billDate, lines: p.lines, notes: p.notes });
 const EMPTY: Draft = { supplierId: '', orderDate: todayISO(), billRef: '', billDate: '', lines: [], notes: '' };
 
-export function PurchaseForm({ initial, finance, suppliers, supplierPortal = false }: { initial?: Purchase; finance: Finance; suppliers: Option[]; supplierPortal?: boolean }) {
+export function PurchaseForm({ initial, finance, suppliers, supplierPortal = false, targets = [] }: { initial?: Purchase; finance: Finance; suppliers: Option[]; supplierPortal?: boolean; targets?: { id: string; ref: string; balance: number }[] }) {
   const router = useRouter();
   const toast = useToast();
   const [po, setPo] = useState(initial);
@@ -128,8 +129,10 @@ export function PurchaseForm({ initial, finance, suppliers, supplierPortal = fal
             emptyText="No documents yet. Attach the supplier’s bill, quote or confirmation here." onChange={() => setTick((x) => x + 1)} />}
           {po && (status === 'billed' || status === 'paid') && (
             <PaymentBox title="Payments to supplier" payments={po.payments} accounts={finance.accounts} balance={t.balance} canPay={status === 'billed'}
+              onCancel={async (p, reason) => { try { apply(await api<Purchase>(`/api/purchases/${po.id}/payments/${p.id}/cancel`, 'POST', { reason })); toast('Payment cancelled.'); } catch (e) { toast((e as Error).message, 'err'); } }}
               onPay={pay} printHref={(p) => `/print/voucher/${po.id}/${p.id}`} printLabel="Print voucher" emptyText="No payments yet." />
           )}
+          {po && (status === 'billed' || status === 'paid') && <CreditPanel side="supplier" docId={po.id} docRef={po.billRef || po.ref} currency="USD" lines={po.lines} open accounts={finance.accounts} targets={targets} onChange={async () => apply(await api<Purchase>(`/api/purchases/${po.id}`))} />}
         </div>
         {po ? <ActivityPanel model="purchase" id={po.id} refreshKey={tick} /> : <aside className="chatter"><h3>Activity</h3><p className="muted" style={{ margin: 0 }}>Nothing is saved until you select Save.</p></aside>}
       </div>
