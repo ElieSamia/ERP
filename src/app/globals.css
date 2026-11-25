@@ -552,3 +552,6 @@ table.kv{border-collapse:collapse;width:100%}table.kv th{text-align:left;font-we
 .crmf-panel{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px}
 .pbar{height:6px;background:var(--sunk);border-radius:4px;margin-top:8px;overflow:hidden}.pbar i{display:block;height:100%;background:var(--accent);transition:width .3s}
 .waprev{background:#e7ddd3;border-radius:10px;padding:16px;display:flex;flex-direction:column}
+.setsec{display:flex;flex-direction:column;gap:6px;margin:4px 0}
+.setsec small{display:block;margin-left:24px}
+.btn.danger{background:var(--red);color:#fff;border-color:var(--red)}
