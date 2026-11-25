@@ -13,6 +13,9 @@ import { TwoStepPanel } from '@/components/TwoStepPanel';
 import { WhatsAppSettings } from '@/components/WhatsAppSettings';
 import { EnquirySettings } from '@/components/EnquirySettings';
 import { EnquirySources } from '@/components/EnquirySources';
+import { BackupPanel } from '@/components/BackupPanel';
+import { SECTIONS } from '@/lib/settingsio';
+import { listBackups } from '@/lib/backup';
 import { listSources } from '@/lib/enquiries';
 import { getEnquirySettings } from '@/lib/enquiry';
 import { getWaSettings } from '@/lib/whatsapp';
@@ -41,6 +44,7 @@ export default async function SettingsPage() {
       {isAdmin && <EnquirySources initial={await listSources()} endpoint={`${await appUrl(`https://${(await headers()).get('host')}`)}/api/public/enquiries`} />}
       {isAdmin && <EnquirySettings initial={await getEnquirySettings()} base={await appUrl(`https://${(await headers()).get('host')}`)} />}
       {isAdmin && <WhatsAppSettings initial={await getWaSettings()} webhookUrl={`${await appUrl(`https://${(await headers()).get('host')}`)}/api/whatsapp/webhook`} />}
+      {isAdmin && await (async () => { const b = await listBackups(); return <BackupPanel sections={SECTIONS.map(({ key, label, note }) => ({ key, label, note }))} initial={{ backups: b, scheduled: !!process.env.CRON_SECRET, lastDaily: b.find((x) => x.kind === 'daily')?.at ?? '' }} />; })()}
       {isAdmin && <UsersPanel initial={users} meId={user.sub} />}
     </>
   );
