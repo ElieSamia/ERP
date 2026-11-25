@@ -31,12 +31,13 @@ const pad = (n: number) => String(n).padStart(4, '0');
 
 /* ---------- Mapping documents for the browser ---------- */
 const lines = (x: unknown) => ((x as TaxLine[]) || []).map((l) => ({ id: l.id, type: l.type, desc: l.desc || '', amount: Number(l.amount) || 0, vat: Number(l.vat) || 0 }));
-const pays = (x: unknown) => ((x as Payment[]) || []).map((p) => ({ id: p.id, ref: p.ref, date: p.date, amount: Number(p.amount) || 0, method: p.method, accountId: p.accountId, by: p.by }));
+const pays = (x: unknown) => ((x as Payment[]) || []).map((p) => ({ id: p.id, ref: p.ref, date: p.date, amount: Number(p.amount) || 0, method: p.method, accountId: p.accountId, by: p.by, ...(p.creditId ? { creditId: p.creditId } : {}), ...(p.cancelled ? { cancelled: p.cancelled } : {}) }));
 const iso = (v: unknown) => (v instanceof Date ? v.toISOString() : (v as string | undefined));
 
 export const toInvoice = (d: WithId<Document>): Invoice => ({
   id: String(d._id), number: d.number ?? null, contactId: d.contactId, bookingId: d.bookingId || undefined, date: d.date, dueDate: d.dueDate,
   status: d.status, lines: lines(d.lines), payments: pays(d.payments), notes: d.notes || '', createdAt: iso(d.createdAt),
+  currency: d.currency || 'USD', rate: Number(d.rate) || 1,
 });
 export const toPurchase = (d: WithId<Document>): Purchase => ({
   id: String(d._id), ref: d.ref, supplierId: d.supplierId, bookingId: d.bookingId || undefined, orderDate: d.orderDate, billRef: d.billRef || '',

@@ -20,7 +20,12 @@ export const TYPE_BADGE: Record<string, string> = { customer: '', agency: 'b-acc
 export const STAGE_BADGE: Record<string, string> = { new: '', qualified: 'b-accent', quoted: 'b-amber', won: 'b-green', lost: 'b-red' };
 
 export const label = (list: readonly (readonly [string, string])[], key: string) => list.find((x) => x[0] === key)?.[1] ?? key;
-export const money = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n || 0);
+/** Amounts with their currency: $1,200.00, €1,200.00, LBP 107,400,000. LBP has no decimals. */
+export const money = (n: number, currency = 'USD') => {
+  const c = /^[A-Z]{3}$/.test(currency) ? currency : 'USD';
+  try { return new Intl.NumberFormat('en-US', { style: 'currency', currency: c, currencyDisplay: c === 'USD' || c === 'EUR' || c === 'GBP' ? 'symbol' : 'code', maximumFractionDigits: c === 'LBP' ? 0 : 2, minimumFractionDigits: c === 'LBP' ? 0 : 2 }).format(n || 0).replace(/\u00a0/g, ' '); }
+  catch { return `${c} ${(n || 0).toFixed(2)}`; }
+};
 export const fmtDate = (d?: string | null) =>
   d ? new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Not set';
 export const fmtDateTime = (d: string | Date) =>
@@ -95,7 +100,7 @@ export function travelDates(b: Datable) {
 }
 
 /* ---------- Printable documents and share links ---------- */
-export type DocKind = 'confirm' | 'vouchers' | 'invoice' | 'receipt' | 'po' | 'voucher' | 'statement' | 'supstatement';
+export type DocKind = 'confirm' | 'vouchers' | 'invoice' | 'receipt' | 'po' | 'voucher' | 'statement' | 'supstatement' | 'credit' | 'refund';
 export const SHARE_DAYS = 30;
 
 /* ---------- Invoicing, purchasing and expenses (phase 3) ---------- */
@@ -140,12 +145,15 @@ export const DEFAULT_FINANCE: Finance = {
 };
 
 /** Totals for invoices and purchase orders: VAT is rounded per line, the way it prints. */
-export function docTotals(lines: { amount: number; vat: number }[], payments: { amount: number }[] = []) {
+export function docTotals(lines: { amount: number; vat: number }[], payments: { amount: number; cancelled?: unknown; method?: string }[] = []) {
   const untaxed = r2(lines.reduce((s, l) => s + (Number(l.amount) || 0), 0));
   const vat = r2(lines.reduce((s, l) => s + r2((Number(l.amount) || 0) * (Number(l.vat) || 0) / 100), 0));
   const total = r2(untaxed + vat);
-  const paid = r2(payments.reduce((s, p) => s + (Number(p.amount) || 0), 0));
-  return { untaxed, vat, total, paid, balance: r2(total - paid) };
+  // Cancelled payments don't count; credit notes applied to the document reduce what's due like a payment.
+  const live = payments.filter((p) => !p.cancelled);
+  const credited = r2(live.filter((p) => p.method === 'credit').reduce((s, p) => s + (Number(p.amount) || 0), 0));
+  const paid = r2(live.filter((p) => p.method !== 'credit').reduce((s, p) => s + (Number(p.amount) || 0), 0));
+  return { untaxed, vat, total, paid, credited, balance: r2(total - paid - credited) };
 }
 export const todayISO = () => new Date().toISOString().slice(0, 10);
 export const addDays = (d: string, n: number) => { const x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
@@ -305,6 +313,7 @@ export type DocLayout = { title: string; accent: string; showLogo: boolean; show
 export const LAYOUT_KINDS: [DocKind, string][] = [
   ['confirm', 'Booking confirmation'], ['vouchers', 'Hotel voucher'], ['invoice', 'Invoice'], ['receipt', 'Payment receipt'],
   ['po', 'Purchase order'], ['voucher', 'Payment voucher'], ['statement', 'Statement of account'], ['supstatement', 'Supplier statement'],
+  ['credit', 'Credit note'], ['refund', 'Refund voucher'],
 ];
 const L = (title: string, showTax: boolean, note: string, sigs?: [string, string]): DocLayout =>
   ({ title, accent: '#0E6B6B', showLogo: true, showTax, showSigs: !!sigs, sig1: sigs?.[0] ?? 'Signature', sig2: sigs?.[1] ?? 'Signature', note, terms: '' });
@@ -318,6 +327,8 @@ export const DEFAULT_LAYOUTS: Record<DocKind, DocLayout> = {
   voucher: L('Payment voucher', false, '', ['Prepared by', 'Received by supplier']),
   statement: L('Statement of account', true, 'Please contact us if anything on this statement looks wrong.'),
   supstatement: L('Supplier statement', true, 'Bills appear here once we have recorded them. Please contact us if anything is missing.'),
+  credit: L('Credit note', true, 'This credit note reduces or cancels the invoice shown above.'),
+  refund: L('Refund voucher', true, '', ['Paid by', 'Received by']),
 };
 export type Appearance = { preset: string; mode: 'system' | 'light' | 'dark'; font: 'instrument' | 'system' | 'serif'; density: 'comfortable' | 'compact'; corners: 'rounded' | 'square'; showLogo: boolean };
 export const DEFAULT_APPEARANCE: Appearance = { preset: 'teal', mode: 'system', font: 'instrument', density: 'comfortable', corners: 'rounded', showLogo: true };

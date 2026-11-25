@@ -87,19 +87,30 @@ export async function syncAccounting() {
     return [...m.entries()];
   };
 
+  // A cancelled payment or refund keeps its entry; a mirror entry on the cancellation date reverses it.
+  const reversal = (s: Spec, at: string, label: string): Spec => ({ ...s, date: at, label, lines: s.lines.map((l) => ({ ...l, debit: l.credit, credit: l.debit })) });
+  type Pay = { id: string; ref: string; date: string; amount: number; accountId: string; method?: string; cancelled?: { at: string } };
+  // Other-currency documents are booked in USD at the document's rate (units per USD).
+  const usdLines = (lines: { type: string; amount: number; vat: number }[], rate: number) => lines.map((l) => ({ ...l, amount: r2((Number(l.amount) || 0) / rate) }));
+
   for (const inv of await d.collection('invoices').find({ status: { $in: ['posted', 'paid'] } }).toArray()) {
-    const id = String(inv._id), t = docTotals(inv.lines || []), partner = String(inv.contactId), num = String(inv.number);
+    const id = String(inv._id), rate = Number(inv.rate) || 1, ul = usdLines(inv.lines || [], rate), t = docTotals(ul), partner = String(inv.contactId), num = String(inv.number);
     const origin = { model: 'invoice', id };
+    const cur = inv.currency && inv.currency !== 'USD' ? ` (${inv.currency})` : '';
     want.set(`invoice:${id}:post`, {
-      journal: 'VEN', date: inv.date, label: `Customer invoice ${num}`, partnerId: partner, origin,
-      lines: [L(acc.receivable, t.total, 0, num, partner), ...sumBy(inv.lines || [], acc.rev, '7064').map(([a, v]) => L(a, 0, v, num, partner)),
+      journal: 'VEN', date: inv.date, label: `Customer invoice ${num}${cur}`, partnerId: partner, origin,
+      lines: [L(acc.receivable, t.total, 0, num, partner), ...sumBy(ul, acc.rev, '7064').map(([a, v]) => L(a, 0, v, num, partner)),
         ...(t.vat ? [L(acc.vatOut, 0, t.vat, `VAT ${num}`, partner)] : [])],
     });
-    for (const p of inv.payments || []) {
-      want.set(`invoice:${id}:pay:${p.id}`, {
+    for (const p of (inv.payments || []) as Pay[]) {
+      if (p.method === 'credit') continue; // a credit note applied here: booked by the credit note itself
+      const amt = r2(p.amount / rate);
+      const spec: Spec = {
         journal: p.accountId, date: p.date, label: `Receipt ${p.ref} for ${num}`, partnerId: partner, origin,
-        lines: [L(paymentLedger(fin, acc, p.accountId), p.amount, 0, p.ref, partner), L(acc.receivable, 0, p.amount, num, partner)],
-      });
+        lines: [L(paymentLedger(fin, acc, p.accountId), amt, 0, p.ref, partner), L(acc.receivable, 0, amt, num, partner)],
+      };
+      want.set(`invoice:${id}:pay:${p.id}`, spec);
+      if (p.cancelled) want.set(`invoice:${id}:pay:${p.id}:cancel`, reversal(spec, p.cancelled.at, `Receipt ${p.ref} cancelled`));
     }
   }
   for (const po of await d.collection('purchases').find({ status: { $in: ['billed', 'paid'] } }).toArray()) {
@@ -110,11 +121,38 @@ export async function syncAccounting() {
       lines: [...sumBy(po.lines || [], acc.cost, '6044').map(([a, v]) => L(a, v, 0, String(po.ref), partner)),
         ...(t.vat ? [L(acc.vatIn, t.vat, 0, `VAT ${po.ref}`, partner)] : []), L(acc.payable, 0, t.total, ref, partner)],
     });
-    for (const p of po.payments || []) {
-      want.set(`purchase:${id}:pay:${p.id}`, {
+    for (const p of (po.payments || []) as Pay[]) {
+      if (p.method === 'credit') continue;
+      const spec: Spec = {
         journal: p.accountId, date: p.date, label: `Voucher ${p.ref} for ${po.ref}`, partnerId: partner, origin,
         lines: [L(acc.payable, p.amount, 0, String(po.ref), partner), L(paymentLedger(fin, acc, p.accountId), 0, p.amount, p.ref, partner)],
+      };
+      want.set(`purchase:${id}:pay:${p.id}`, spec);
+      if (p.cancelled) want.set(`purchase:${id}:pay:${p.id}:cancel`, reversal(spec, p.cancelled.at, `Voucher ${p.ref} cancelled`));
+    }
+  }
+  // Credit notes reverse the sale (or the purchase); refunds move the money back.
+  for (const c of await d.collection('credits').find({}).toArray()) {
+    const id = String(c._id), rate = Number(c.rate) || 1, ul = usdLines(c.lines || [], rate), t = docTotals(ul), partner = String(c.partnerId), num = String(c.number);
+    const origin = { model: c.side === 'customer' ? 'invoice' : 'purchase', id: String(c.docId) };
+    if (c.side === 'customer') {
+      want.set(`credit:${id}`, {
+        journal: 'VEN', date: c.date, label: `Credit note ${num} for ${c.docRef}`, partnerId: partner, origin,
+        lines: [...sumBy(ul, acc.rev, '7064').map(([a, v]) => L(a, v, 0, num, partner)), ...(t.vat ? [L(acc.vatOut, t.vat, 0, `VAT ${num}`, partner)] : []), L(acc.receivable, 0, t.total, num, partner)],
       });
+    } else {
+      want.set(`credit:${id}`, {
+        journal: 'ACH', date: c.date, label: `Supplier credit note ${c.theirRef || num} for ${c.docRef}`, partnerId: partner, origin,
+        lines: [L(acc.payable, t.total, 0, num, partner), ...sumBy(ul, acc.cost, '6044').map(([a, v]) => L(a, 0, v, num, partner)), ...(t.vat ? [L(acc.vatIn, 0, t.vat, `VAT ${num}`, partner)] : [])],
+      });
+    }
+    for (const r of (c.refunds || []) as Pay[]) {
+      const amt = r2(r.amount / rate), bank = paymentLedger(fin, acc, r.accountId);
+      const spec: Spec = c.side === 'customer'
+        ? { journal: r.accountId, date: r.date, label: `Refund ${r.ref} on ${num}`, partnerId: partner, origin, lines: [L(acc.receivable, amt, 0, r.ref, partner), L(bank, 0, amt, r.ref, partner)] }
+        : { journal: r.accountId, date: r.date, label: `Refund ${r.ref} received on ${num}`, partnerId: partner, origin, lines: [L(bank, amt, 0, r.ref, partner), L(acc.payable, 0, amt, r.ref, partner)] };
+      want.set(`credit:${id}:refund:${r.id}`, spec);
+      if (r.cancelled) want.set(`credit:${id}:refund:${r.id}:cancel`, reversal(spec, r.cancelled.at, `Refund ${r.ref} cancelled`));
     }
   }
   for (const e of await d.collection('expenses').find({ status: 'posted' }).toArray()) {
@@ -196,7 +234,7 @@ export async function outstanding(side: 'rec' | 'pay') {
   const today = todayISO();
   if (side === 'rec') {
     const invs = await d.collection('invoices').find({ status: 'posted' }).toArray();
-    return invs.map((i) => ({ partnerId: String(i.contactId), doc: String(i.number), date: String(i.date), due: String(i.dueDate), total: docTotals(i.lines || []).total, balance: docTotals(i.lines || [], i.payments || []).balance, href: `/invoicing/${i._id}`, bucket: ageBucket(String(i.dueDate), today) })).filter((x) => x.balance > 0.004);
+    return invs.map((i) => ({ partnerId: String(i.contactId), doc: String(i.number), date: String(i.date), due: String(i.dueDate), total: r2(docTotals(i.lines || []).total / (Number(i.rate) || 1)), balance: r2(docTotals(i.lines || [], i.payments || []).balance / (Number(i.rate) || 1)), href: `/invoicing/${i._id}`, bucket: ageBucket(String(i.dueDate), today) })).filter((x) => x.balance > 0.004);
   }
   const fin = await getFinance();
   const pos = await d.collection('purchases').find({ status: 'billed' }).toArray();

@@ -54,7 +54,7 @@ export async function calendarEvents(from: string, to: string): Promise<CalEvent
     const bal = docTotals(i.lines || [], i.payments || []).balance;
     if (bal <= 0.004) continue;
     const c = await d.collection('contacts').findOne({ _id: i.contactId instanceof ObjectId ? i.contactId : new ObjectId(String(i.contactId)) }, { projection: { name: 1 } }).catch(() => null);
-    ev.push({ id: `inv-${i._id}`, date: i.dueDate, kind: 'due', title: `${i.number}: ${money(bal)} due`, sub: String(c?.name ?? ''), href: `/invoicing/${i._id}`, late: i.dueDate < today });
+    ev.push({ id: `inv-${i._id}`, date: i.dueDate, kind: 'due', title: `${i.number}: ${money(bal, String(i.currency || 'USD'))} due`, sub: String(c?.name ?? ''), href: `/invoicing/${i._id}`, late: i.dueDate < today });
   }
 
   const fin = await getFinance();

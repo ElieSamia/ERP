@@ -13,7 +13,7 @@ import type { Contact } from './types';
 /** Every printable document, used by the staff print pages and by public share links. */
 export type { DocKind };
 export const DOC_KIND_NAMES: Record<DocKind, string> = {
-  confirm: 'booking confirmation', vouchers: 'hotel vouchers', invoice: 'invoice', receipt: 'payment receipt', po: 'purchase order', voucher: 'payment voucher', statement: 'statement of account', supstatement: 'supplier statement',
+  confirm: 'booking confirmation', vouchers: 'hotel vouchers', invoice: 'invoice', receipt: 'payment receipt', po: 'purchase order', voucher: 'payment voucher', statement: 'statement of account', supstatement: 'supplier statement', credit: 'credit note', refund: 'refund voucher',
 };
 export type LoadedDoc = {
   title: string; number: string; party: Contact | null; model: 'booking' | 'invoice' | 'purchase' | 'contact'; recordId: string;
@@ -32,7 +32,12 @@ export async function loadDoc(kind: DocKind, id: string, pid?: string, opts: { p
     const rows: Row[] = [];
     for (const p of pos) {
       rows.push({ date: p.billDate || p.orderDate, ref: p.billRef || p.ref, text: `Bill for ${p.ref}${p.bookingRef ? `, booking ${p.bookingRef}` : ''}`, billed: docTotals(p.lines).total, paid: 0 });
-      for (const x of p.payments) rows.push({ date: x.date, ref: x.ref, text: `Payment for ${p.ref}`, billed: 0, paid: x.amount });
+      for (const x of p.payments) if (!x.cancelled && x.method !== 'credit') rows.push({ date: x.date, ref: x.ref, text: `Payment for ${p.ref}`, billed: 0, paid: x.amount });
+    }
+    const { listCredits } = await import('./credits');
+    for (const c of await listCredits({ partnerId: id, side: 'supplier' })) {
+      rows.push({ date: c.date, ref: c.theirRef || c.number, text: `Credit note for ${c.docRef}`, billed: 0, paid: c.total });
+      for (const r of c.refunds) if (!r.cancelled) rows.push({ date: r.date, ref: r.ref, text: `Refund received on ${c.number}`, billed: r.amount, paid: 0 });
     }
     rows.sort((a, b) => a.date.localeCompare(b.date) || a.ref.localeCompare(b.ref));
     let run = 0;
@@ -60,15 +65,22 @@ export async function loadDoc(kind: DocKind, id: string, pid?: string, opts: { p
     type Row = { date: string; ref: string; text: string; charge: number; paid: number };
     const rows: Row[] = [];
     for (const i of invs) {
-      rows.push({ date: i.date, ref: i.number ?? '', text: `Invoice, due ${fmtDate(i.dueDate)}`, charge: docTotals(i.lines).total, paid: 0 });
-      for (const p of i.payments) rows.push({ date: p.date, ref: p.ref, text: `Payment for ${i.number}`, charge: 0, paid: p.amount });
+      // The statement is in USD: other-currency invoices are converted at their own rate, with the original amount noted.
+      const u = (n: number) => r2(n / (i.rate || 1)), cur = i.currency !== 'USD' ? ` (${money(docTotals(i.lines).total, i.currency)})` : '';
+      rows.push({ date: i.date, ref: i.number ?? '', text: `Invoice, due ${fmtDate(i.dueDate)}${cur}`, charge: u(docTotals(i.lines).total), paid: 0 });
+      for (const p of i.payments) if (!p.cancelled && p.method !== 'credit') rows.push({ date: p.date, ref: p.ref, text: `Payment for ${i.number}`, charge: 0, paid: u(p.amount) });
+    }
+    const { listCredits } = await import('./credits');
+    for (const c of await listCredits({ partnerId: id, side: 'customer' })) {
+      rows.push({ date: c.date, ref: c.number, text: `Credit note for ${c.docRef}`, charge: 0, paid: r2(c.total / c.rate) });
+      for (const r of c.refunds) if (!r.cancelled) rows.push({ date: r.date, ref: r.ref, text: `Refund paid on ${c.number}`, charge: r2(r.amount / c.rate), paid: 0 });
     }
     rows.sort((a, b) => a.date.localeCompare(b.date) || a.ref.localeCompare(b.ref));
     let run = 0;
     const today = new Date().toISOString().slice(0, 10);
     const ages: Record<string, number> = {};
     for (const [k] of AGE) ages[k] = 0;
-    for (const i of invs.filter((x) => x.status === 'posted')) { const k = ageBucket(i.dueDate, today); ages[k] = r2(ages[k] + docTotals(i.lines, i.payments).balance); }
+    for (const i of invs.filter((x) => x.status === 'posted')) { const k = ageBucket(i.dueDate, today); ages[k] = r2(ages[k] + docTotals(i.lines, i.payments).balance / (i.rate || 1)); }
     const number = `As of ${fmtDate(today)}`;
     return {
       title: 'Statement of account', number, party: contact, model: 'contact', recordId: id, back: `/contacts/${id}`, backLabel: 'Back to the contact',
@@ -140,11 +152,69 @@ export async function loadDoc(kind: DocKind, id: string, pid?: string, opts: { p
     };
   }
 
+  if (kind === 'credit' || kind === 'refund') {
+    const { getCredit } = await import('./credits');
+    const c = await getCredit(id);
+    if (!c) return null;
+    const contact = await getContact(c.partnerId);
+    const cust = c.side === 'customer';
+    const base = { party: contact, model: (cust ? 'invoice' : 'purchase') as 'invoice' | 'purchase', recordId: c.docId, back: cust ? `/invoicing/${c.docId}` : `/purchasing/${c.docId}`, backLabel: cust ? 'Back to the invoice' : 'Back to the order' };
+    const m = (n: number) => money(n, c.currency);
+    if (kind === 'credit') {
+      const t = docTotals(c.lines);
+      return {
+        ...base, title: cust ? 'Credit note' : 'Supplier credit note', number: c.number,
+        node: (
+          <article className="paper" style={paperStyle(L)}>
+            <PaperHead company={company} layout={L} title={cust ? 'Credit note' : 'Supplier credit note'} number={c.number} party={contact} partyLabel={cust ? 'Credited to' : 'From supplier'} showTax
+              meta={[['Date', fmtDate(c.date)], [cust ? 'For invoice' : 'For bill', c.docRef], ...(c.theirRef ? [['Their reference', c.theirRef] as [string, string]] : []), ['Currency', c.currency]]} />
+            <p><b>Reason:</b> {c.reason}</p>
+            <table>
+              <thead><tr><th>Description</th><th>VAT</th><th className="r">Amount</th><th className="r">VAT amount</th></tr></thead>
+              <tbody>{c.lines.map((l) => <tr key={l.id}><td>{l.desc}</td><td>{l.vat}%</td><td className="r">{m(l.amount)}</td><td className="r">{m(r2(l.amount * l.vat / 100))}</td></tr>)}</tbody>
+            </table>
+            <div className="tot">
+              <div><span>Untaxed amount</span><span>{m(t.untaxed)}</span></div>
+              <div><span>VAT</span><span>{m(t.vat)}</span></div>
+              <div className="g"><span>Total credited</span><span>{m(t.total)}</span></div>
+              {c.allocations.map((a, i) => <div key={i}><span>Applied to {a.ref}</span><span>{m(a.amount)}</span></div>)}
+              {c.refunded > 0 && <div><span>Refunded</span><span>{m(c.refunded)}</span></div>}
+              {c.available > 0.004 && <div><span><b>Credit remaining</b></span><span><b>{m(c.available)}</b></span></div>}
+            </div>
+            {c.currency !== 'USD' && <p className="muted">USD equivalent at {c.rate} {c.currency} per USD: {money(r2(t.total / c.rate))}.</p>}
+            <PaperFoot company={company} layout={L} />
+          </article>
+        ),
+      };
+    }
+    const r = c.refunds.find((x) => x.id === pid);
+    if (!r) return null;
+    const fin = await getFinance();
+    return {
+      ...base, title: cust ? 'Refund voucher' : 'Refund received', number: r.ref,
+      node: (
+        <article className="paper" style={paperStyle(L)}>
+          <PaperHead company={company} layout={L} title={cust ? 'Refund voucher' : 'Refund received'} number={r.ref} party={contact} partyLabel={cust ? 'Paid to' : 'Received from'} showTax stamp={r.cancelled ? 'Cancelled' : undefined}
+            meta={[['Date', fmtDate(r.date)], ['Method', label(PAY_METHODS, r.method)], [cust ? 'Paid from' : 'Received into', fin.accounts.find((a) => a.id === r.accountId)?.name ?? '']]} />
+          <div className="amountbox"><span className="lbl">{cust ? 'Amount refunded' : 'Amount received back'}</span><div className="big">{m(r.amount)}</div></div>
+          <table><tbody>
+            <tr><td>Credit note</td><td className="r">{c.number}</td></tr>
+            <tr><td>{cust ? 'Original invoice' : 'Original bill'}</td><td className="r">{c.docRef}</td></tr>
+            <tr><td>Reason</td><td className="r">{c.reason}</td></tr>
+            {r.cancelled && <tr><td>Cancelled</td><td className="r">{fmtDate(r.cancelled.at)}: {r.cancelled.reason}</td></tr>}
+          </tbody></table>
+          <PaperFoot company={company} layout={L} />
+        </article>
+      ),
+    };
+  }
+
   if (kind === 'invoice' || kind === 'receipt') {
     const inv = await getInvoice(id);
     if (!inv) return null;
     const contact = await getContact(inv.contactId);
     const base = { party: contact, model: 'invoice' as const, recordId: inv.id, back: `/invoicing/${inv.id}`, backLabel: 'Back to the invoice' };
+    const m = (n: number) => money(n, inv.currency);
     if (kind === 'invoice') {
       const t = docTotals(inv.lines, inv.payments);
       const stamp = inv.status === 'draft' ? 'Draft' : inv.status === 'paid' ? 'Paid' : undefined;
@@ -153,17 +223,20 @@ export async function loadDoc(kind: DocKind, id: string, pid?: string, opts: { p
         node: (
           <article className="paper" style={paperStyle(L)}>
             <PaperHead company={company} layout={L} title="Invoice" number={inv.number ?? 'Draft'} party={contact} partyLabel="Bill to" showTax stamp={stamp}
-              meta={[['Invoice date', fmtDate(inv.date)], ['Due date', fmtDate(inv.dueDate)], ['Booking', inv.bookingRef ?? '']]} />
+              meta={[['Invoice date', fmtDate(inv.date)], ['Due date', fmtDate(inv.dueDate)], ['Booking', inv.bookingRef ?? ''], ...(inv.currency !== 'USD' ? [['Currency', inv.currency] as [string, string]] : [])]} />
             <table>
               <thead><tr><th>Description</th><th>VAT</th><th className="r">Amount</th><th className="r">VAT amount</th></tr></thead>
-              <tbody>{inv.lines.map((l) => <tr key={l.id}><td>{l.desc}</td><td>{l.vat}%</td><td className="r">{money(l.amount)}</td><td className="r">{money(r2(l.amount * l.vat / 100))}</td></tr>)}</tbody>
+              <tbody>{inv.lines.map((l) => <tr key={l.id}><td>{l.desc}</td><td>{l.vat}%</td><td className="r">{m(l.amount)}</td><td className="r">{m(r2(l.amount * l.vat / 100))}</td></tr>)}</tbody>
             </table>
             <div className="tot">
-              <div><span>Untaxed amount</span><span>{money(t.untaxed)}</span></div>
-              <div><span>VAT</span><span>{money(t.vat)}</span></div>
-              <div className="g"><span>Total</span><span>{money(t.total)}</span></div>
-              {t.paid > 0 && <><div><span>Paid</span><span>{money(t.paid)}</span></div><div><span><b>Balance due</b></span><span><b>{money(t.balance)}</b></span></div></>}
+              <div><span>Untaxed amount</span><span>{m(t.untaxed)}</span></div>
+              <div><span>VAT</span><span>{m(t.vat)}</span></div>
+              <div className="g"><span>Total</span><span>{m(t.total)}</span></div>
+              {t.credited > 0 && <div><span>Credit notes applied</span><span>{m(t.credited)}</span></div>}
+              {t.paid > 0 && <div><span>Paid</span><span>{m(t.paid)}</span></div>}
+              {(t.paid > 0 || t.credited > 0) && <div><span><b>Balance due</b></span><span><b>{m(t.balance)}</b></span></div>}
             </div>
+            {inv.currency !== 'USD' && <p className="muted">Exchange rate {inv.rate.toLocaleString('en-US')} {inv.currency} per USD. Total in USD: {money(r2(t.total / inv.rate))}{inv.currency === 'LBP' ? '' : ''}.</p>}
             {inv.notes && <p className="pre">{inv.notes}</p>}
             <PaperFoot company={company} layout={L} note="Thank you for travelling with us." />
           </article>
@@ -178,13 +251,14 @@ export async function loadDoc(kind: DocKind, id: string, pid?: string, opts: { p
       ...base, title: 'Payment receipt', number: p.ref,
       node: (
         <article className="paper" style={paperStyle(L)}>
-          <PaperHead company={company} layout={L} title="Payment receipt" number={p.ref} party={contact} partyLabel="Received from" showTax
+          <PaperHead company={company} layout={L} title="Payment receipt" number={p.ref} party={contact} partyLabel="Received from" showTax stamp={p.cancelled ? 'Cancelled' : undefined}
             meta={[['Date', fmtDate(p.date)], ['Method', label(PAY_METHODS, p.method)], ['Received into', fin.accounts.find((a) => a.id === p.accountId)?.name ?? '']]} />
-          <div className="amountbox"><span className="lbl">Amount received</span><div className="big">{money(p.amount)}</div></div>
+          <div className="amountbox"><span className="lbl">Amount received</span><div className="big">{m(p.amount)}</div></div>
           <table><tbody>
             <tr><td>For invoice</td><td className="r">{inv.number}</td></tr>
-            <tr><td>Invoice total</td><td className="r">{money(docTotals(inv.lines).total)}</td></tr>
-            <tr><td>Balance after this payment</td><td className="r"><b>{money(docTotals(inv.lines, inv.payments.slice(0, idx + 1)).balance)}</b></td></tr>
+            <tr><td>Invoice total</td><td className="r">{m(docTotals(inv.lines).total)}</td></tr>
+            {p.cancelled ? <tr><td>Cancelled</td><td className="r">{fmtDate(p.cancelled.at)}: {p.cancelled.reason}</td></tr>
+              : <tr><td>Balance after this payment</td><td className="r"><b>{m(docTotals(inv.lines, inv.payments.slice(0, idx + 1)).balance)}</b></td></tr>}
           </tbody></table>
           <PaperFoot company={company} layout={L} note="Thank you for your payment." sigs={['Received by', 'Customer']} />
         </article>
@@ -227,7 +301,7 @@ export async function loadDoc(kind: DocKind, id: string, pid?: string, opts: { p
     ...base, title: 'Payment voucher', number: x.ref,
     node: (
       <article className="paper" style={paperStyle(L)}>
-        <PaperHead company={company} layout={L} title="Payment voucher" number={x.ref} party={supplier} partyLabel="Paid to"
+        <PaperHead company={company} layout={L} title="Payment voucher" number={x.ref} party={supplier} partyLabel="Paid to" stamp={x.cancelled ? 'Cancelled' : undefined}
           meta={[['Date', fmtDate(x.date)], ['Method', label(PAY_METHODS, x.method)], ['Paid from', fin.accounts.find((a) => a.id === x.accountId)?.name ?? ''], ['Supplier bill', po.billRef]]} />
         <div className="amountbox"><span className="lbl">Amount paid</span><div className="big">{money(x.amount)}</div></div>
         <table><tbody>

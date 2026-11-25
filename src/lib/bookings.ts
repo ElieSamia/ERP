@@ -95,7 +95,8 @@ export async function exposure(contactId: string, excludeId?: string) {
   const list = await d.collection('bookings').find(filter, { projection: { lines: 1 } }).toArray();
   const open = list.reduce((s, b) => s + totals(b.lines || []).total, 0);
   const invs = await d.collection('invoices').find({ contactId, status: 'posted' }, { projection: { lines: 1, payments: 1 } }).toArray();
-  const due = invs.reduce((s, i) => s + docTotals(i.lines || [], i.payments || []).balance, 0);
+  // In USD, whatever each invoice's currency.
+  const due = invs.reduce((s, i) => s + docTotals(i.lines || [], i.payments || []).balance / (Number(i.rate) || 1), 0);
   return open + due;
 }
 

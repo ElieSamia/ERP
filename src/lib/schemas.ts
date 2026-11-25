@@ -117,7 +117,22 @@ export const invoiceEditSchema = z.object({
   dueDate: isoDate,
   lines: z.array(taxLineSchema).max(100),
   notes: z.string().max(4000).default(''),
+  currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/, 'Choose a currency.').default('USD'),
+  rate: z.coerce.number().positive('The exchange rate must be above zero.').default(1),
 });
+export const creditSchema = z.object({
+  date: isoDate,
+  lines: z.array(taxLineSchema).min(1, 'Add at least one line.').max(100),
+  reason: z.string().trim().min(2, 'Say why (for example: trip cancelled by the customer).').max(500),
+  theirRef: z.string().trim().max(60).default(''),
+});
+export const refundSchema = z.object({
+  date: isoDate,
+  amount: z.coerce.number().positive('Enter an amount above zero.'),
+  method: z.enum(['transfer', 'cash', 'card', 'cheque', 'wallet']).default('transfer'),
+  accountId: z.string().min(1, 'Choose the account.'),
+});
+export const cancelSchema = z.object({ reason: z.string().trim().min(3, 'Say why it’s cancelled.').max(300) });
 
 export const paymentSchema = z.object({
   date: isoDate,

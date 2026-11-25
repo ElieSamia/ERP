@@ -102,10 +102,20 @@ export type Option = { id: string; name: string };
 import type { InvoiceStatus, PurchaseStatus, ExpenseStatus } from './constants';
 
 export type TaxLine = { id: string; type: ServiceType; desc: string; amount: number; vat: number };
-export type Payment = { id: string; ref: string; date: string; amount: number; method: string; accountId: string; by: string };
+/** A payment; method 'credit' is a credit note applied to the document (creditId says which). Cancelled ones stay listed. */
+export type Payment = { id: string; ref: string; date: string; amount: number; method: string; accountId: string; by: string; creditId?: string; cancelled?: { at: string; by: string; reason: string } };
 export type Invoice = {
   id: string; number: string | null; contactId: string; contactName?: string; bookingId?: string; bookingRef?: string;
   date: string; dueDate: string; status: InvoiceStatus; lines: TaxLine[]; payments: Payment[]; notes: string; createdAt?: string;
+  /** Invoice currency and its rate (units per 1 USD, fixed on the invoice). The books stay in USD. */
+  currency: string; rate: number;
+};
+export type CreditNote = {
+  id: string; number: string; side: 'customer' | 'supplier'; docId: string; docRef: string; partnerId: string; partnerName?: string;
+  date: string; currency: string; rate: number; lines: TaxLine[]; reason: string; theirRef: string;
+  total: number; allocated: number; refunded: number; available: number;
+  allocations: { docId: string; ref: string; amount: number; date: string }[];
+  refunds: Payment[]; createdBy: string; createdAt?: string;
 };
 export type Purchase = {
   id: string; ref: string; supplierId: string; supplierName?: string; bookingId?: string; bookingRef?: string; orderDate: string;
