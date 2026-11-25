@@ -25,6 +25,10 @@ export async function PATCH(req: Request, { params }: Ctx) {
     if (before.status !== 'draft') throw new HttpError(409, 'Posted invoices can’t be changed. Reset it to draft first, if it has no payments.');
     const data = invoiceEditSchema.parse(await req.json());
     if (data.dueDate < data.date) throw new HttpError(400, 'The due date is before the invoice date.');
+    if (data.currency !== 'USD') {
+      const { getAccSettings } = await import('@/lib/accounting');
+      if (!(await getAccSettings()).currencies.some((c) => c.code === data.currency)) throw new HttpError(400, `Add ${data.currency} and its rate under Accounting → Settings first.`);
+    } else data.rate = 1;
     await col.updateOne({ _id: oid(id) }, { $set: { ...data, updatedAt: new Date(), updatedBy: user.name } });
     await logActivity('invoice', id, user.name, 'Draft updated.');
     return getInvoice(id);

@@ -18,12 +18,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (!inv) throw new HttpError(404, 'Invoice not found.');
     if (inv.status !== 'posted') throw new HttpError(409, inv.status === 'paid' ? 'This invoice is already paid.' : 'Post the invoice before registering payments.');
     const { balance } = docTotals(inv.lines || [], inv.payments || []);
-    if (p.amount > balance + 0.004) throw new HttpError(400, `The amount is more than the balance due of ${money(balance)}.`);
+    if (p.amount > balance + 0.004) throw new HttpError(400, `The amount is more than the balance due of ${money(balance, inv.currency || 'USD')}.`);
     const pay = { id: randomUUID(), ref: await receiptNumber(), ...p, by: user.name };
     const paid = docTotals(inv.lines || [], [...(inv.payments || []), pay]).balance <= 0.004;
     await col.updateOne({ _id: oid(id) }, { $push: { payments: pay }, $set: { status: paid ? 'paid' : 'posted' } } as never);
     const acc = fin.accounts.find((a) => a.id === p.accountId)?.name;
-    await logActivity('invoice', id, user.name, `Payment of ${money(p.amount)} received into ${acc}, receipt ${pay.ref}.${paid ? ' Invoice fully paid.' : ''}`);
+    await logActivity('invoice', id, user.name, `Payment of ${money(p.amount, inv.currency || 'USD')} received into ${acc}, receipt ${pay.ref}.${paid ? ' Invoice fully paid.' : ''}`);
     waNotify('payment-received', { contactId: String(inv.contactId), kind: 'receipt', id, pid: pay.id, model: 'invoice', recordId: id, by: user.name });
     return { invoice: await getInvoice(id), paymentId: pay.id };
   });
