@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
-import { getFinance, getPurchase } from '@/lib/finance';
+import { getFinance, getPurchase, listPurchases } from '@/lib/finance';
+import { docTotals } from '@/lib/constants';
 import { listSuppliers } from '@/lib/bookings';
 import { PurchaseForm } from '@/components/PurchaseForm';
 import { db } from '@/lib/db';
@@ -11,5 +12,7 @@ export default async function PurchasePage({ params }: { params: Promise<{ id: s
   const d = await db();
   const c = po.supplierId ? await d.collection('contacts').findOne({ _id: new (await import('mongodb')).ObjectId(po.supplierId) }, { projection: { portalAccess: 1 } }).catch(() => null) : null;
   const users = c?.portalAccess === 'yes' ? await d.collection('portalUsers').countDocuments({ contactId: po.supplierId, active: { $ne: false } }) : 0;
-  return <PurchaseForm key={po.id} initial={po} finance={finance} suppliers={suppliers} supplierPortal={users > 0} />;
+  const targets = (await listPurchases({ status: 'billed' })).filter((p) => p.supplierId === po.supplierId && p.id !== po.id)
+    .map((p) => ({ id: p.id, ref: p.billRef || p.ref, balance: docTotals(p.lines, p.payments).balance })).filter((x) => x.balance > 0.004);
+  return <PurchaseForm key={po.id} initial={po} finance={finance} suppliers={suppliers} supplierPortal={users > 0} targets={targets} />;
 }
