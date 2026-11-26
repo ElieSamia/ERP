@@ -5,7 +5,8 @@ import type { Payment, TaxLine } from '@/lib/types';
 const newId = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : String(Date.now() + Math.random()));
 
 /** Lines with a service type, VAT rate and amount, used by invoices and purchase orders. */
-export function TaxLines({ lines, onChange, editable, amountLabel, vatFor, payments = [] }: {
+export function TaxLines({ lines, onChange, editable, amountLabel, vatFor, payments = [], currency = 'USD', credit }: {
+  currency?: string; credit?: { credited: number; owed: number };
   lines: TaxLine[]; onChange: (l: TaxLine[]) => void; editable: boolean; amountLabel: string; vatFor: (type: TaxLine['type']) => number; payments?: Payment[];
 }) {
   const t = docTotals(lines, payments);
@@ -35,11 +36,17 @@ export function TaxLines({ lines, onChange, editable, amountLabel, vatFor, payme
       ) : <div className="empty">No lines yet.</div>}
       {editable && <div className="addrow"><button className="btn" onClick={() => onChange([...lines, { id: newId(), type: 'package', desc: '', amount: 0, vat: vatFor('package') }])}>Add line</button></div>}
       <div className="totals">
-        <div><span>Untaxed amount</span><b>{money(t.untaxed)}</b></div>
-        <div><span>VAT</span><b>{money(t.vat)}</b></div>
-        <div><span>Total</span><b>{money(t.total)}</b></div>
-        {payments.length > 0 && <div><span>Paid</span><b>{money(t.paid)}</b></div>}
-        <div className="grand"><span>{payments.length ? 'Balance due' : 'Total'}</span><b>{money(payments.length ? t.balance : t.total)}</b></div>
+        <div><span>Untaxed amount</span><b>{money(t.untaxed, currency)}</b></div>
+        <div><span>VAT</span><b>{money(t.vat, currency)}</b></div>
+        <div><span>Total</span><b>{money(t.total, currency)}</b></div>
+        {credit && credit.credited > 0 && <>
+          <div><span>Credit notes</span><b>−{money(credit.credited, currency)}</b></div>
+          <div><span>Net invoice</span><b>{money(t.total - credit.credited, currency)}</b></div>
+        </>}
+        {t.paid > 0 && <div><span>Paid</span><b>{money(t.paid, currency)}</b></div>}
+        {credit && credit.owed > 0.004
+          ? <div className="grand owed"><span>Owed to the customer</span><b>{money(credit.owed, currency)}</b></div>
+          : <div className="grand"><span>{payments.length || credit ? 'Balance due' : 'Total'}</span><b>{money(payments.length || credit ? t.balance : t.total, currency)}</b></div>}
       </div>
     </>
   );

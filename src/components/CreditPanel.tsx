@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/client';
-import { PAY_METHODS, docTotals, fmtDate, money, r2, todayISO, type PayAccount } from '@/lib/constants';
+import { PAY_METHODS, METHOD_ACCOUNT_LABEL, accountsFor, docTotals, fmtDate, money, r2, todayISO, type PayAccount } from '@/lib/constants';
 import type { CreditNote, TaxLine } from '@/lib/types';
 import { DateInput } from './DateInput';
 import { Modal } from './Modal';
@@ -39,13 +39,16 @@ export function CreditPanel({ side, docId, docRef, currency, lines, open, accoun
   return (
     <section className="sheet">
       <div className="cp" style={{ marginBottom: 6 }}><h2 style={{ margin: 0 }}>Credit notes and refunds</h2>
-        {open && left > 0.004 && <div className="cp-actions"><button className="btn" onClick={() => setMake({ date: todayISO(), reason: '', theirRef: '', lines: lines.map((l) => ({ ...l, on: true })) })}>New credit note…</button></div>}</div>
+        {open && left > 0.004 && <div className="cp-actions">{list.length > 0 && <span className="muted" style={{ fontSize: 13, alignSelf: 'center' }}>Up to {m(left)} can still be credited</span>}<button className="btn" onClick={() => setMake({ date: todayISO(), reason: '', theirRef: '', lines: lines.map((l) => ({ ...l, on: true })) })}>New credit note…</button></div>}</div>
       {list.length === 0 ? <p className="muted" style={{ margin: 0 }}>{cust ? 'For a trip cancelled or changed after invoicing: a credit note cancels all or part of this invoice, then refund the money or keep it as credit.' : 'When the supplier credits all or part of this bill: record their credit note, then the refund they send or keep it as credit.'}</p> : list.map((c) => (
         <div key={c.id} className="credit">
           <div className="cp"><span><b>{c.number}</b>{c.theirRef ? ` (their ref. ${c.theirRef})` : ''}, {fmtDate(c.date)}: {c.reason}</span>
             <span className="payr"><b>{m(c.total)}</b><a className="btn" href={`/print/credit/${c.id}`} target="_blank" rel="noopener">Print</a></span></div>
-          <p className="muted" style={{ margin: '2px 0 6px', fontSize: 13 }}>
-            {c.allocations.map((a) => `${m(a.amount)} applied to ${a.ref}`).join(', ') || 'Not applied to any document'}{c.refunded ? `; ${m(c.refunded)} refunded` : ''}{c.available > 0.004 ? `; ${m(c.available)} still available` : ''}.</p>
+          <p className="muted" style={{ margin: '2px 0 6px', fontSize: 13 }}>{(() => {
+            const parts = [...c.allocations.map((a) => `${m(a.amount)} applied to ${a.ref}`), ...(c.refunded ? [`${m(c.refunded)} refunded`] : [])];
+            if (c.available <= 0.004) return c.refunded >= c.total - 0.004 ? 'Fully refunded.' : c.allocated >= c.total - 0.004 ? `Fully applied (${parts.join(', ')}).` : `Fully used: ${parts.join(', ')}.`;
+            return `${parts.length ? `${parts.join(', ')}; ` : ''}${m(c.available)} still owed to the ${cust ? 'customer' : 'agency'}: refund it or apply it to another ${cust ? 'invoice' : 'bill'}.`;
+          })()}</p>
           {c.refunds.map((r) => (
             <div key={r.id} className={`refund ${r.cancelled ? 'cancelled' : ''}`}>
               <span>{cust ? 'Refund' : 'Refund received'} <b>{r.ref}</b>, {fmtDate(r.date)}{r.cancelled ? `, cancelled ${fmtDate(r.cancelled.at)}: ${r.cancelled.reason}` : ''}</span>
@@ -54,7 +57,7 @@ export function CreditPanel({ side, docId, docRef, currency, lines, open, accoun
             </div>))}
           {c.available > 0.004 && (
             <div className="addrow" style={{ marginTop: 4 }}>
-              <button className="btn primary" disabled={busy} onClick={() => setRefund({ c, date: todayISO(), amount: c.available, method: 'transfer', accountId: accounts[0]?.id ?? '' })}>{cust ? 'Refund the customer…' : 'Record refund received…'}</button>
+              <button className="btn primary" disabled={busy} onClick={() => setRefund({ c, date: todayISO(), amount: c.available, method: 'transfer', accountId: accountsFor('transfer', accounts)[0]?.id ?? '' })}>{cust ? 'Refund the customer…' : 'Record refund received…'}</button>
               {targets.length > 0 && <button className="btn" disabled={busy} onClick={() => setAlloc({ c, docId: targets[0].id, amount: Math.min(c.available, targets[0].balance) })}>Apply to another {cust ? 'invoice' : 'bill'}…</button>}
             </div>)}
         </div>))}
@@ -84,11 +87,12 @@ export function CreditPanel({ side, docId, docRef, currency, lines, open, accoun
           <div className="grid">
             <label className="fld" htmlFor="rf-a"><span>Amount ({currency}), up to {m(refund.c.available)}</span><input id="rf-a" type="number" min={0} step="0.01" value={refund.amount} onChange={(e) => setRefund({ ...refund, amount: parseFloat(e.target.value) || 0 })} /></label>
             <label className="fld" htmlFor="rf-d"><span>Date</span><DateInput id="rf-d" value={refund.date} onChange={(v) => setRefund({ ...refund, date: v })} /></label>
-            <label className="fld" htmlFor="rf-m"><span>Method</span><select id="rf-m" value={refund.method} onChange={(e) => setRefund({ ...refund, method: e.target.value })}>{PAY_METHODS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
-            <label className="fld" htmlFor="rf-acc"><span>{cust ? 'Paid from' : 'Received into'}</span><select id="rf-acc" value={refund.accountId} onChange={(e) => setRefund({ ...refund, accountId: e.target.value })}>{accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
+            <label className="fld" htmlFor="rf-m"><span>Method</span><select id="rf-m" value={refund.method} onChange={(e) => { const list = accountsFor(e.target.value, accounts); setRefund({ ...refund, method: e.target.value, accountId: list.some((a) => a.id === refund.accountId) ? refund.accountId : list[0]?.id ?? '' }); }}>{PAY_METHODS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
+            <label className="fld" htmlFor="rf-acc"><span>{cust ? 'Paid from' : 'Received into'}</span>{accountsFor(refund.method, accounts).length ? <select id="rf-acc" value={refund.accountId} onChange={(e) => setRefund({ ...refund, accountId: e.target.value })}>{accountsFor(refund.method, accounts).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select>
+              : <small className="field-err" id="rf-acc">No {METHOD_ACCOUNT_LABEL[refund.method]} accounts yet: add one in Settings → Payment accounts.</small>}</label>
           </div>
           <div className="dlg-actions"><button className="btn" onClick={() => setRefund(null)}>Cancel</button>
-            <button className="btn primary" disabled={busy || refund.amount <= 0} onClick={async () => { if (await run(() => api(`/api/credits/${refund.c.id}/refund`, 'POST', { date: refund.date, amount: refund.amount, method: refund.method, accountId: refund.accountId }), 'Refund recorded.')) setRefund(null); }}>Record refund</button></div>
+            <button className="btn primary" disabled={busy || refund.amount <= 0 || refund.amount > refund.c.available + 0.004 || !accountsFor(refund.method, accounts).some((a) => a.id === refund.accountId)} onClick={async () => { if (await run(() => api(`/api/credits/${refund.c.id}/refund`, 'POST', { date: refund.date, amount: refund.amount, method: refund.method, accountId: refund.accountId }), 'Refund recorded.')) setRefund(null); }}>Record refund</button></div>
         </Modal>
       )}
       {alloc && (

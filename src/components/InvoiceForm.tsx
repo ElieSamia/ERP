@@ -76,6 +76,7 @@ export function InvoiceForm({ initial, finance, currencies = [], targets = [] }:
         </div>
         <div className="cp-tools">
           <ol className="statusbar" aria-label="Status">{INVOICE_STATES.map(([k, l]) => <li key={k} className={k === inv.status ? 'on' : ''}>{l}</li>)}</ol>
+          {(inv.creditSummary?.owed ?? 0) > 0.004 && <span className="badge b-amber" style={{ marginLeft: 8 }}>Credit due to customer</span>}
         </div>
       </div>
       <div className="recpage">
@@ -95,7 +96,7 @@ export function InvoiceForm({ initial, finance, currencies = [], targets = [] }:
           </section>
           <section className="sheet">
             <h2>Invoice lines</h2>
-            <TaxLines lines={f.lines} onChange={(lines) => setF({ ...f, lines })} editable={draft} amountLabel="Amount excl. VAT" vatFor={(ty) => finance.vat[ty] ?? 11} payments={inv.payments} />
+            <TaxLines lines={f.lines} onChange={(lines) => setF({ ...f, lines })} editable={draft} amountLabel="Amount excl. VAT" vatFor={(ty) => finance.vat[ty] ?? 11} payments={inv.payments} currency={f.currency} credit={inv.creditSummary} />
           </section>
           <PaymentBox title="Payments" payments={inv.payments} accounts={finance.accounts} balance={t.balance} canPay={inv.status === 'posted'} currency={inv.currency}
             onCancel={inv.status !== 'draft' ? cancelPay : undefined} onPay={pay} printHref={(p) => `/print/receipt/${inv.id}/${p.id}`} printLabel="Print receipt"
