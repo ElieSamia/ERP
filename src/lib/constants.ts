@@ -120,6 +120,10 @@ export const VAT_RATES = [['0', '0%'], ['11', '11%']] as const;
 export const ACCOUNT_TYPES = [['bank', 'Bank account'], ['cash', 'Cash box'], ['wallet', 'E-wallet'], ['gateway', 'Card or payment gateway']] as const;
 
 export type PayAccount = { id: string; name: string; type: 'bank' | 'cash' | 'wallet' | 'gateway' };
+/** Which kinds of account each payment method can go through: a bank transfer into a bank, cash into a cash box… */
+export const METHOD_ACCOUNTS: Record<string, PayAccount['type'][]> = { transfer: ['bank'], cheque: ['bank'], card: ['gateway', 'bank'], cash: ['cash'], wallet: ['wallet'] };
+export const accountsFor = (method: string, accounts: PayAccount[]) => accounts.filter((a) => (METHOD_ACCOUNTS[method] ?? []).includes(a.type));
+export const METHOD_ACCOUNT_LABEL: Record<string, string> = { transfer: 'bank', cheque: 'bank', card: 'card or bank', cash: 'cash', wallet: 'wallet' };
 export type ExpenseCategory = { id: string; name: string };
 export type Finance = {
   terms: { customer: number; agency: number; corporate: number };

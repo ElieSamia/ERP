@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import { ObjectId, type Document, type WithId } from 'mongodb';
 import { db } from './db';
 import { escapeRegex, HttpError, oid } from './api';
-import { DEFAULT_FINANCE, type Finance, docTotals, sell, todayISO, type MarkupType } from './constants';
+import { DEFAULT_FINANCE, type Finance, docTotals, sell, todayISO, type MarkupType, METHOD_ACCOUNTS, METHOD_ACCOUNT_LABEL } from './constants';
 import { logActivity } from './activity';
 import type { Expense, Invoice, Payment, Purchase, TaxLine } from './types';
 import { publicDocs } from './attachments';
@@ -81,7 +81,10 @@ export async function getInvoice(id: string) {
   if (!d) return null;
   const i = toInvoice(d);
   const [n, r] = await Promise.all([names([i.contactId]), refs([i.bookingId || ''])]);
-  return { ...i, contactName: n.get(i.contactId) ?? 'Unknown customer', bookingRef: i.bookingId ? r.get(i.bookingId) : undefined };
+  const { listCredits } = await import('./credits');
+  const cns = (await listCredits({ docId: id })).filter((c) => c.docId === id);
+  const creditSummary = cns.length ? { credited: cns.reduce((s, c) => s + c.total, 0), owed: cns.reduce((s, c) => s + c.available, 0) } : undefined;
+  return { ...i, contactName: n.get(i.contactId) ?? 'Unknown customer', bookingRef: i.bookingId ? r.get(i.bookingId) : undefined, creditSummary };
 }
 
 /** Creates a draft invoice from a confirmed or ticketed booking, with VAT per service type from Settings. */
@@ -187,9 +190,14 @@ export async function getExpense(id: string) {
 }
 
 /** Checks that a payment account id exists in Settings. */
-export async function checkAccount(accountId: string) {
+export async function checkAccount(accountId: string, method?: string) {
   const fin = await getFinance();
-  if (!fin.accounts.some((a) => a.id === accountId)) throw new HttpError(400, 'Choose one of the bank, cash or wallet accounts.');
+  const a = fin.accounts.find((x) => x.id === accountId);
+  if (!a) throw new HttpError(400, 'Choose one of the bank, cash or wallet accounts.');
+  // The account must suit the method: a bank transfer can't go into a cash box or a wallet.
+  if (method && METHOD_ACCOUNTS[method] && !METHOD_ACCOUNTS[method].includes(a.type)) {
+    throw new HttpError(400, `${a.name} isn’t a ${METHOD_ACCOUNT_LABEL[method]} account, so it can’t take a ${({ transfer: 'bank transfer', cash: 'cash payment', card: 'card payment', cheque: 'cheque', wallet: 'wallet transfer' } as Record<string, string>)[method] ?? method}. Choose a matching account, or check its type in Settings → Payment accounts.`);
+  }
   return fin;
 }
 export { docTotals };

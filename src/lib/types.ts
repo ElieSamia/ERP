@@ -109,6 +109,8 @@ export type Invoice = {
   date: string; dueDate: string; status: InvoiceStatus; lines: TaxLine[]; payments: Payment[]; notes: string; createdAt?: string;
   /** Invoice currency and its rate (units per 1 USD, fixed on the invoice). The books stay in USD. */
   currency: string; rate: number;
+  /** Credit notes on this invoice: how much was credited, and how much is still owed to the customer (not refunded or applied). */
+  creditSummary?: { credited: number; owed: number };
 };
 export type CreditNote = {
   id: string; number: string; side: 'customer' | 'supplier'; docId: string; docRef: string; partnerId: string; partnerName?: string;
