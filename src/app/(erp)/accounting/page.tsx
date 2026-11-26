@@ -139,6 +139,9 @@ export default async function AccountingPage({ searchParams }: { searchParams: S
     );
   } else if (tab === 'outstanding') {
     const items = await outstanding(side === 'pay' ? 'pay' : 'rec');
+    // Credit still owed back (credit notes not yet refunded or applied): easy to forget, so listed here too.
+    const { listCredits } = await import('@/lib/credits');
+    const owedBack = (await listCredits({ side: side === 'pay' ? 'supplier' : 'customer' })).filter((c) => c.available > 0.004);
     const by = new Map<string, Record<string, number>>();
     for (const x of items) { const r = by.get(x.partnerId) ?? { nd: 0, a30: 0, a60: 0, a90: 0, a90p: 0, total: 0 }; r[x.bucket] = r2(r[x.bucket] + x.balance); r.total = r2(r.total + x.balance); by.set(x.partnerId, r); }
     const tot: Record<string, number> = { nd: 0, a30: 0, a60: 0, a90: 0, a90p: 0, total: 0 };
@@ -165,6 +168,19 @@ export default async function AccountingPage({ searchParams }: { searchParams: S
               </tbody></table></div></section>
           </>
         )}
+        {owedBack.length > 0 && <section className="sheet" style={{ marginTop: 16 }}>
+          <h2>{side === 'pay' ? 'Credit suppliers owe you' : 'Credit owed to customers'}</h2>
+          <p className="hint" style={{ marginTop: 0 }}>{side === 'pay' ? 'Supplier credit notes not yet refunded to you or applied to another bill.' : 'Credit notes not yet refunded or applied to another invoice: money you owe back.'}</p>
+          <div className="table-wrap"><table>
+            <thead><tr><th>{side === 'pay' ? 'Supplier' : 'Customer'}</th><th>Credit note</th><th>Date</th><th>For</th><th>Reason</th><th className="num">Still owed</th></tr></thead>
+            <tbody>{owedBack.map((c) => (
+              <tr key={c.id}><td><Link href={`/contacts/${c.partnerId}`}><strong>{partner(c.partnerId)}</strong></Link></td><td><a href={`/print/credit/${c.id}`} target="_blank" rel="noopener">{c.theirRef || c.number}</a></td>
+                <td>{fmtDate(c.date)}</td><td><Link href={side === 'pay' ? `/purchasing/${c.docId}` : `/invoicing/${c.docId}`}>{c.docRef}</Link></td><td>{c.reason}</td><td className="num"><b>{money(c.available, c.currency)}</b></td></tr>))}
+            </tbody>
+            <tfoot><tr><td colSpan={5}><b>Total{owedBack.some((c) => c.currency !== 'USD') ? ' (USD equivalent)' : ''}</b></td><td className="num"><b>{fmt(r2(owedBack.reduce((s, c) => s + c.available / (c.rate || 1), 0)))}</b></td></tr></tfoot>
+          </table></div>
+          <p className="hint">Open the document to refund it, or apply it to another open {side === 'pay' ? 'bill' : 'invoice'}.</p>
+        </section>}
         <p className="hint">{side === 'pay' ? `Supplier bills are due ${fin.supplierTerms} days after the bill date (Settings). Expenses bought on credit show in the ledger of account ${acc.payable}.` : 'Based on posted invoices that aren’t fully paid, aged by due date.'}</p>
       </>
     );
