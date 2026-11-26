@@ -560,3 +560,5 @@ table.kv{border-collapse:collapse;width:100%}table.kv th{text-align:left;font-we
 .credit{border-top:1px solid var(--line);padding:10px 0}
 .credit .refund{display:flex;justify-content:space-between;gap:10px;padding:4px 0 4px 14px;font-size:14px}
 .credit .refund.cancelled b{text-decoration:line-through;opacity:.6}
+.field-err{display:block;color:var(--red);font-size:12.5px;margin-top:3px}
+.totals .grand.owed b,.totals .grand.owed span{color:var(--amber)}
