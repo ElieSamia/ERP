@@ -13,7 +13,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const user = await requireUser();
     const id = (await params).id;
     const p = paymentSchema.parse(await req.json());
-    const fin = await checkAccount(p.accountId);
+    const fin = await checkAccount(p.accountId, p.method);
     const col = (await db()).collection('purchases');
     const po = await col.findOne({ _id: oid(id) });
     if (!po) throw new HttpError(404, 'Purchase order not found.');

@@ -8,7 +8,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   return handle(async () => {
     const user = await requireUser();
     const b = refundSchema.parse(await req.json());
-    await checkAccount(b.accountId);
+    await checkAccount(b.accountId, b.method);
     return refundCredit((await params).id, b, user.name);
   });
 }
