@@ -9,7 +9,7 @@ export async function GET(req: Request) {
   return handle(async () => {
     await requireUser();
     const sp = new URL(req.url).searchParams;
-    const f = Object.fromEntries(['source', 'created', 'travel', 'ctype', 'dest', 'attention', 'booking'].map((k) => [k, sp.get(k) ?? undefined]));
+    const f = Object.fromEntries(['source', 'created', 'travel', 'ctype', 'dest', 'attention', 'booking', 'followup'].map((k) => [k, sp.get(k) ?? undefined]));
     return listLeads(sp.get('q')?.trim() || undefined, f);
   });
 }
