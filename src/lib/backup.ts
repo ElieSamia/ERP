@@ -104,10 +104,13 @@ export async function restore(id: string, by: string) {
   if (!b) throw new HttpError(404, 'Backup not found.');
   const { data } = unpack(await load(String(b.path)));
   const safety = await makeBackup('before-restore', by);
-  const current = (await d.listCollections({}, { nameOnly: true }).toArray()).map((c) => c.name).filter((n) => !SKIP.has(n) && !n.startsWith('system.'));
+  // The audit log is never rolled back: it must keep the record of everything, including this restore.
+  const KEEP = new Set(['audit']);
+  const current = (await d.listCollections({}, { nameOnly: true }).toArray()).map((c) => c.name).filter((n) => !SKIP.has(n) && !KEEP.has(n) && !n.startsWith('system.'));
   for (const n of current) if (!(n in data)) await d.collection(n).deleteMany({});
   let docs = 0;
   for (const [n, rows] of Object.entries(data)) {
+    if (KEEP.has(n)) continue;
     const col = d.collection(n);
     await col.deleteMany({});
     for (let i = 0; i < rows.length; i += 1000) if (rows.length) await col.insertMany(rows.slice(i, i + 1000) as never[], { ordered: false });

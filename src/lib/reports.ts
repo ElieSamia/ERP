@@ -158,3 +158,9 @@ export async function reportTables(sales: Sale[], months: string[], crm: Awaited
     },
   };
 }
+
+/** For a role without costs and margins: the same table without its cost, margin and markup columns. */
+export function withoutCosts(t: Table): Table {
+  const keep = t.cols.map((c, i) => (/^(cost|margin|markup)/i.test(c.h) ? -1 : i)).filter((i) => i >= 0);
+  return { ...t, cols: keep.map((i) => t.cols[i]), rows: t.rows.map((r) => keep.map((i) => r[i])), total: t.total ? keep.map((i) => t.total![i]) : undefined, note: t.note?.replace(/Cost is what[^.]*\./, '') };
+}

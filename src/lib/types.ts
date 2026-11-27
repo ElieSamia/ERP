@@ -57,7 +57,7 @@ export type Company = {
   commercialReg: string;
 };
 
-export type StaffUser = { id: string; name: string; email: string; role: 'admin' | 'staff'; active: boolean; lastLogin?: string; twoStep?: boolean };
+export type StaffUser = { id: string; name: string; email: string; role: 'admin' | 'staff'; active: boolean; lastLogin?: string; twoStep?: boolean; roleId?: string };
 
 import type { BookingStatus, ServiceType, TripType, ContactType as CT } from './constants';
 

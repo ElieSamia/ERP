@@ -47,6 +47,8 @@ async function ensureIndexes(d: Db) {
     d.collection('wamessages').createIndex({ phone: 1, at: -1 }),
     d.collection('enqlimits').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     d.collection('enqlog').createIndex({ at: 1 }, { expireAfterSeconds: 30 * 86400 }),
+    d.collection('audit').createIndex({ at: 1 }, { expireAfterSeconds: 366 * 86400 }),
+    d.collection('audit').createIndex({ kind: 1, at: -1 }),
     d.collection('enqlog').createIndex({ sourceId: 1, at: -1 }),
     d.collection('enqsources').createIndex({ keyHash: 1 }, { unique: true }),
     d.collection('leads').createIndex({ 'enquiry.sourceId': 1, 'enquiry.requestId': 1 }, { unique: true, partialFilterExpression: { 'enquiry.requestId': { $type: 'string' } } }),
