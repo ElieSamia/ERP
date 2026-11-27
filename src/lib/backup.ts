@@ -13,7 +13,7 @@ import { storageReady, storeOpts } from './attachments';
  * derived from AUTH_SECRET (so a copy that leaks is unreadable without it). Kept in the private file store
  * (Vercel Blob), with a list in the `backups` collection. Restoring puts every collection back as it was.
  */
-const SKIP = new Set(['offers', 'enqlimits', 'backups']); // short-lived caches, and the backup list itself
+const SKIP = new Set(['offers', 'enqlimits', 'backups', 'imports']); // short-lived caches, and the backup list itself
 const key = () => createHash('sha256').update(`${process.env.AUTH_SECRET ?? ''}:backup`).digest();
 const MAGIC = Buffer.from('TERPBAK1');
 

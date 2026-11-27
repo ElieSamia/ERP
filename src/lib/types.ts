@@ -33,6 +33,8 @@ export type Lead = {
   budget: number;
   notes: string;
   createdAt?: string;
+  /** A date to get back to the customer, with what about. */
+  followUpDate?: string; followUpNote?: string;
   /** OPP-0042, on opportunities created from version 10.4 on. */
   ref?: string;
   /** Where it came from: Website, a partner, WhatsApp, or empty when typed in. */
@@ -110,7 +112,7 @@ export type Invoice = {
   /** Invoice currency and its rate (units per 1 USD, fixed on the invoice). The books stay in USD. */
   currency: string; rate: number;
   /** Credit notes on this invoice: how much was credited, and how much is still owed to the customer (not refunded or applied). */
-  creditSummary?: { credited: number; owed: number };
+  creditSummary?: { credited: number; owed: number; refunded: number };
 };
 export type CreditNote = {
   id: string; number: string; side: 'customer' | 'supplier'; docId: string; docRef: string; partnerId: string; partnerName?: string;

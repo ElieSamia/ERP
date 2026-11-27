@@ -2,11 +2,11 @@ import { db } from './db';
 import { getFinance } from './finance';
 import { addDays, docTotals, money, todayISO } from './constants';
 
-export type CalKind = 'trip' | 'service' | 'due' | 'bill' | 'lead' | 'quote' | 'reminder' | 'deadline';
+export type CalKind = 'trip' | 'service' | 'due' | 'bill' | 'lead' | 'followup' | 'quote' | 'reminder' | 'deadline' | 'passport';
 export type CalEvent = { id: string; date: string; time?: string; kind: CalKind; title: string; sub: string; href?: string; late?: boolean; done?: boolean; note?: string };
 export const CAL_KINDS: [CalKind, string][] = [
   ['trip', 'Departures and returns'], ['service', 'Services'], ['due', 'Customer payments due'], ['bill', 'Supplier payments due'],
-  ['lead', 'Opportunities'], ['quote', 'Quotes expiring'], ['deadline', 'Provider deadlines'], ['reminder', 'Reminders'],
+  ['lead', 'Opportunities'], ['followup', 'Follow-ups'], ['quote', 'Quotes expiring'], ['deadline', 'Provider deadlines'], ['passport', 'Passport warnings'], ['reminder', 'Reminders'],
 ];
 
 /**
@@ -67,6 +67,15 @@ export async function calendarEvents(from: string, to: string): Promise<CalEvent
     ev.push({ id: `po-${p._id}`, date: due, kind: 'bill', title: `Pay ${c?.name ?? 'supplier'}: ${money(bal)}`, sub: `${p.ref}${p.billRef ? `, bill ${p.billRef}` : ''}`, href: `/purchasing/${p._id}`, late: due < today });
   }
 
+  {
+    const { passportIssues } = await import('./passports');
+    for (const b of await d.collection('bookings').find({ status: { $ne: 'cancelled' }, departDate: { $gte: from > today ? from : today, $lte: to } }).toArray()) {
+      for (const x of passportIssues(b).filter((i) => i.level !== 'missing')) ev.push({ id: `pp-${b._id}-${x.name}`, date: b.departDate, kind: 'passport', title: `Passport: ${x.text}`, sub: String(b.ref), href: `/bookings/${b._id}`, late: x.level === 'expired' });
+    }
+  }
+  for (const l of await d.collection('leads').find({ stage: { $nin: ['won', 'lost'] }, followUpDate: { $gte: from, $lte: to } }).toArray()) {
+    ev.push({ id: `fu-${l._id}`, date: l.followUpDate, kind: 'followup', title: `Follow up: ${l.title}`, sub: String(l.followUpNote || 'Get back to the customer'), href: `/crm/${l._id}`, late: l.followUpDate < today });
+  }
   for (const l of await d.collection('leads').find({ stage: { $nin: ['won', 'lost'] }, travelDate: { $gte: from, $lte: to } }).toArray()) {
     ev.push({ id: `lead-${l._id}`, date: l.travelDate, kind: 'lead', title: `Opportunity: ${l.title}`, sub: `Travel date${l.destination ? `, ${l.destination}` : ''}`, href: `/crm/${l._id}` });
   }

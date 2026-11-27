@@ -31,7 +31,7 @@ async function withContactNames(leads: Lead[]) {
 }
 
 /** CRM filters, as they appear in the page address so a filtered view can be bookmarked or shared. */
-export type LeadFilters = { source?: string; created?: string; travel?: string; ctype?: string; dest?: string; attention?: string; booking?: string };
+export type LeadFilters = { source?: string; created?: string; travel?: string; ctype?: string; dest?: string; attention?: string; booking?: string; followup?: string };
 
 export async function listLeads(q?: string, f: LeadFilters = {}) {
   const filter: Record<string, unknown> = {};
@@ -52,6 +52,8 @@ export async function listLeads(q?: string, f: LeadFilters = {}) {
   else if (f.travel === 'next') { const n = new Date(); n.setUTCDate(1); n.setUTCMonth(n.getUTCMonth() + 1); and.push({ travelDate: { $regex: `^${n.toISOString().slice(0, 7)}` } }); }
   else if (f.travel === 'none') and.push({ $or: [{ travelDate: '' }, { travelDate: { $exists: false } }] });
   if (f.dest) and.push({ destination: { $regex: escapeRegex(f.dest), $options: 'i' } });
+  if (f.followup === 'due') and.push({ followUpDate: { $gt: '', $lte: today }, stage: { $nin: ['won', 'lost'] } });
+  else if (f.followup === 'week') and.push({ followUpDate: { $gt: '', $lte: plusDays(7) }, stage: { $nin: ['won', 'lost'] } });
   if (f.booking === 'yes') and.push({ bookingId: { $exists: true, $nin: ['', null] } });
   else if (f.booking === 'no') and.push({ $or: [{ bookingId: { $exists: false } }, { bookingId: '' }, { bookingId: null }] });
   // Needs attention: new for more than a day, or travelling within two weeks and still open.

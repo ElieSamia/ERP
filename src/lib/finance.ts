@@ -83,7 +83,7 @@ export async function getInvoice(id: string) {
   const [n, r] = await Promise.all([names([i.contactId]), refs([i.bookingId || ''])]);
   const { listCredits } = await import('./credits');
   const cns = (await listCredits({ docId: id })).filter((c) => c.docId === id);
-  const creditSummary = cns.length ? { credited: cns.reduce((s, c) => s + c.total, 0), owed: cns.reduce((s, c) => s + c.available, 0) } : undefined;
+  const creditSummary = cns.length ? { credited: cns.reduce((s, c) => s + c.total, 0), owed: cns.reduce((s, c) => s + c.available, 0), refunded: cns.reduce((s, c) => s + c.refunded, 0) } : undefined;
   return { ...i, contactName: n.get(i.contactId) ?? 'Unknown customer', bookingRef: i.bookingId ? r.get(i.bookingId) : undefined, creditSummary };
 }
 

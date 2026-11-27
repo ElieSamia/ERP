@@ -30,6 +30,8 @@ export const leadSchema = z.object({
   pax: z.coerce.number().int().min(0).default(1),
   budget: z.coerce.number().min(0, 'The budget can’t be negative.').default(0),
   notes: text,
+  followUpDate: z.union([z.literal(''), z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a valid date.')]).default(''),
+  followUpNote: z.string().trim().max(300).default(''),
 });
 
 export const companySchema = z.object({

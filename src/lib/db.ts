@@ -48,6 +48,7 @@ async function ensureIndexes(d: Db) {
     d.collection('enqlimits').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     d.collection('enqlog').createIndex({ at: 1 }, { expireAfterSeconds: 30 * 86400 }),
     d.collection('audit').createIndex({ at: 1 }, { expireAfterSeconds: 366 * 86400 }),
+    d.collection('imports').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     d.collection('audit').createIndex({ kind: 1, at: -1 }),
     d.collection('enqlog').createIndex({ sourceId: 1, at: -1 }),
     d.collection('enqsources').createIndex({ keyHash: 1 }, { unique: true }),

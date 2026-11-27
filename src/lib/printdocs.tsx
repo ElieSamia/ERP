@@ -1,3 +1,5 @@
+import { db } from './db';
+import { FlightItinerary } from './itinerary';
 import type { ReactNode } from 'react';
 import { ObjectId } from 'mongodb';
 import { getBooking } from './bookings';
@@ -110,6 +112,8 @@ export async function loadDoc(kind: DocKind, id: string, pid?: string, opts: { p
     const base = { party: contact, model: 'booking' as const, recordId: b.id, back: `/bookings/${b.id}`, backLabel: 'Back to the booking' };
     if (kind === 'confirm') {
       const prices = !!opts.prices;
+      // Flight details live on the server-side copy of each service (the Rates offer); the itinerary never shows prices.
+      const raw = ObjectId.isValid(b.id) ? await (await db()).collection('bookings').findOne({ _id: new ObjectId(b.id) }, { projection: { lines: 1 } }) : null;
       const meta: [string, string][] = [['Booking date', fmtDate(b.bookingDate)], ['Travel dates', travelDates(b)]];
       if (b.tripType !== 'service') meta.push(['Route', `${b.origin} to ${b.destination}${b.tripType === 'oneway' ? ', one way' : ''}`]);
       if (b.destinationName) meta.push(['Destination', b.destinationName]);
@@ -124,6 +128,7 @@ export async function loadDoc(kind: DocKind, id: string, pid?: string, opts: { p
               <tbody>{b.lines.map((l) => <tr key={l.id}><td>{label(SERVICE_TYPES, l.type)}</td><td>{l.desc}</td><td>{fmtRange(l.date, l.dateTo)}</td>{prices && <td className="r">{money(sell(l))}</td>}</tr>)}</tbody>
             </table>
             {prices && <div className="tot"><div className="g"><span>Total</span><span>{money(totals(b.lines).total)}</span></div></div>}
+            {raw && <FlightItinerary lines={((raw.lines ?? []) as { id: string; type: string }[])} />}
             {b.tripNotes && <><h3>Important information</h3><p className="pre">{b.tripNotes}</p></>}
             <PaperFoot company={company} layout={L} note="Please check names and dates against passports and tell us about any difference right away." />
           </article>
