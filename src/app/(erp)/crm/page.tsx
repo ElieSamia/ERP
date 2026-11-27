@@ -6,7 +6,7 @@ import { Kanban } from '@/components/Kanban';
 import { CrmFilters } from '@/components/CrmFilters';
 import { db } from '@/lib/db';
 
-type SP = Promise<{ q?: string; view?: string; source?: string; created?: string; travel?: string; ctype?: string; dest?: string; attention?: string; booking?: string }>;
+type SP = Promise<{ q?: string; view?: string; source?: string; created?: string; travel?: string; ctype?: string; dest?: string; attention?: string; booking?: string; followup?: string }>;
 
 export default async function CrmPage({ searchParams }: { searchParams: SP }) {
   const sp = await searchParams;

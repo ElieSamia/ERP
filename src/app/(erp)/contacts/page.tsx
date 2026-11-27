@@ -22,7 +22,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: SP 
     <>
       <div className="cp">
         <div className="crumbs"><h1 style={{ fontSize: 'inherit' }}>Contacts</h1></div>
-        <div className="cp-actions"><Link className="btn primary" href="/contacts/new">New contact</Link></div>
+        <div className="cp-actions"><Link className="btn" href="/contacts/import">Import…</Link><Link className="btn primary" href="/contacts/new">New contact</Link></div>
         <div className="cp-tools">
           <SearchBox placeholder="Search name, email, phone or city" />
           <div className="chips" role="group" aria-label="Filter by type">{chip('all', 'All')}{CONTACT_TYPES.map(([k, l]) => chip(k, l))}</div>
