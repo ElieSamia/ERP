@@ -14,6 +14,9 @@ import { WhatsAppSettings } from '@/components/WhatsAppSettings';
 import { EnquirySettings } from '@/components/EnquirySettings';
 import { EnquirySources } from '@/components/EnquirySources';
 import { BackupPanel } from '@/components/BackupPanel';
+import { RolesPanel } from '@/components/RolesPanel';
+import { AuditPanel } from '@/components/AuditPanel';
+import { listRoles } from '@/lib/roles';
 import { SECTIONS } from '@/lib/settingsio';
 import { listBackups } from '@/lib/backup';
 import { listSources } from '@/lib/enquiries';
@@ -45,7 +48,16 @@ export default async function SettingsPage() {
       {isAdmin && <EnquirySettings initial={await getEnquirySettings()} base={await appUrl(`https://${(await headers()).get('host')}`)} />}
       {isAdmin && <WhatsAppSettings initial={await getWaSettings()} webhookUrl={`${await appUrl(`https://${(await headers()).get('host')}`)}/api/whatsapp/webhook`} />}
       {isAdmin && await (async () => { const b = await listBackups(); return <BackupPanel sections={SECTIONS.map(({ key, label, note }) => ({ key, label, note }))} initial={{ backups: b, scheduled: !!process.env.CRON_SECRET, lastDaily: b.find((x) => x.kind === 'daily')?.at ?? '' }} />; })()}
-      {isAdmin && <UsersPanel initial={users} meId={user.sub} />}
+      {isAdmin && await (async () => {
+        const roles = await listRoles();
+        const counts: Record<string, number> = {};
+        for (const u of users) if (u.role !== 'admin') counts[u.roleId || 'staff-full'] = (counts[u.roleId || 'staff-full'] ?? 0) + 1;
+        return <>
+          <UsersPanel initial={users} meId={user.sub} roles={roles.map((r) => ({ id: r.id, name: r.name }))} />
+          <RolesPanel initial={roles} counts={counts} />
+          <AuditPanel />
+        </>;
+      })()}
     </>
   );
 }

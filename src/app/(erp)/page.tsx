@@ -1,3 +1,4 @@
+import { accessFor, areaFor, can } from '@/lib/roles';
 import Link from 'next/link';
 import { db } from '@/lib/db';
 import { getCompany } from '@/lib/queries';
@@ -18,6 +19,8 @@ async function activeTrips(d: Db) {
 
 export default async function Home() {
   const [company, user, d] = await Promise.all([getCompany(), getSession(), db()]);
+  const access = user ? await accessFor(user.sub, user.role) : null;
+  const show = (href: string) => { const a = areaFor(href); return !a || !access || can(access, a, 'view'); };
   const [open, contacts, active] = await Promise.all([
     d.collection('leads').countDocuments({ stage: { $in: ['new', 'qualified', 'quoted'] } }),
     d.collection('contacts').countDocuments(),
@@ -35,21 +38,21 @@ export default async function Home() {
       <h1>{company.name || 'Travel ERP'}</h1>
       <p>Welcome, {user?.name.split(' ')[0]}. Everything here is saved to the database.</p>
       <div className="apps">
-        <Link className="app" href="/crm"><span className="ico"><Icon name="crm" /></span><b>CRM</b><span>{open} open opportunities</span></Link>
-        <Link className="app" href="/bookings"><span className="ico"><Icon name="plane" /></span><b>Bookings</b><span>{active} active trip file{active === 1 ? '' : 's'}</span></Link>
-        <Link className="app" href="/invoicing"><span className="ico"><Icon name="doc" /></span><b>Invoicing</b><span>{unpaid} unpaid invoice{unpaid === 1 ? '' : 's'}</span></Link>
-        <Link className="app" href="/purchasing"><span className="ico"><Icon name="cart" /></span><b>Purchasing</b><span>{openPOs} open order{openPOs === 1 ? '' : 's'}</span></Link>
-        <Link className="app" href="/rates"><span className="ico"><Icon name="search" /></span><b>Rates desk</b><span>Search flights, hotels, transfers and insurance across providers</span></Link>
-        <Link className="app" href="/calendar"><span className="ico"><Icon name="calendar" /></span><b>Calendar</b><span>{week} item{week === 1 ? '' : 's'} in the next 7 days</span></Link>
-        <Link className="app" href="/expenses"><span className="ico"><Icon name="receipt" /></span><b>Expenses</b><span>{draftExp} draft{draftExp === 1 ? '' : 's'} to post</span></Link>
-        <Link className="app" href="/accounting"><span className="ico"><Icon name="ledger" /></span><b>Accounting</b><span>Journal, reports and VAT, administrators only</span></Link>
+        {show('/crm') && <Link className="app" href="/crm"><span className="ico"><Icon name="crm" /></span><b>CRM</b><span>{open} open opportunities</span></Link>}
+        {show('/bookings') && <Link className="app" href="/bookings"><span className="ico"><Icon name="plane" /></span><b>Bookings</b><span>{active} active trip file{active === 1 ? '' : 's'}</span></Link>}
+        {show('/invoicing') && <Link className="app" href="/invoicing"><span className="ico"><Icon name="doc" /></span><b>Invoicing</b><span>{unpaid} unpaid invoice{unpaid === 1 ? '' : 's'}</span></Link>}
+        {show('/purchasing') && <Link className="app" href="/purchasing"><span className="ico"><Icon name="cart" /></span><b>Purchasing</b><span>{openPOs} open order{openPOs === 1 ? '' : 's'}</span></Link>}
+        {show('/rates') && <Link className="app" href="/rates"><span className="ico"><Icon name="search" /></span><b>Rates desk</b><span>Search flights, hotels, transfers and insurance across providers</span></Link>}
+        {show('/calendar') && <Link className="app" href="/calendar"><span className="ico"><Icon name="calendar" /></span><b>Calendar</b><span>{week} item{week === 1 ? '' : 's'} in the next 7 days</span></Link>}
+        {show('/expenses') && <Link className="app" href="/expenses"><span className="ico"><Icon name="receipt" /></span><b>Expenses</b><span>{draftExp} draft{draftExp === 1 ? '' : 's'} to post</span></Link>}
+        {show('/accounting') && <Link className="app" href="/accounting"><span className="ico"><Icon name="ledger" /></span><b>Accounting</b><span>Journal, reports and VAT</span></Link>}
         <Link className="app" href="/b2b"><span className="ico"><Icon name="globe" /></span><b>B2B portal</b><span>{reqs} open request{reqs === 1 ? '' : 's'} from customers</span></Link>
-        <Link className="app" href="/products"><span className="ico"><Icon name="tag" /></span><b>Products and pricing</b><span>{products} active product{products === 1 ? '' : 's'} in the catalogue</span></Link>
-        <Link className="app" href="/whatsapp"><span className="ico"><Icon name="chat" /></span><b>WhatsApp</b><span>Conversations with customers and suppliers</span></Link>
-        <Link className="app" href="/marketing"><span className="ico"><Icon name="megaphone" /></span><b>Marketing</b><span>Audiences and email campaigns</span></Link>
-        <Link className="app" href="/reports"><span className="ico"><Icon name="chart" /></span><b>Reports</b><span>Sales, margins, customers, destinations and pipeline</span></Link>
-        <Link className="app" href="/contacts"><span className="ico"><Icon name="person" /></span><b>Contacts</b><span>{contacts} customers, agencies and suppliers</span></Link>
-        <Link className="app" href="/settings"><span className="ico"><Icon name="gear" /></span><b>Settings</b><span>Company, markups, payments and staff users</span></Link>
+        {show('/products') && <Link className="app" href="/products"><span className="ico"><Icon name="tag" /></span><b>Products and pricing</b><span>{products} active product{products === 1 ? '' : 's'} in the catalogue</span></Link>}
+        {show('/whatsapp') && <Link className="app" href="/whatsapp"><span className="ico"><Icon name="chat" /></span><b>WhatsApp</b><span>Conversations with customers and suppliers</span></Link>}
+        {show('/marketing') && <Link className="app" href="/marketing"><span className="ico"><Icon name="megaphone" /></span><b>Marketing</b><span>Audiences and email campaigns</span></Link>}
+        {show('/reports') && <Link className="app" href="/reports"><span className="ico"><Icon name="chart" /></span><b>Reports</b><span>Sales, margins, customers, destinations and pipeline</span></Link>}
+        {show('/contacts') && <Link className="app" href="/contacts"><span className="ico"><Icon name="person" /></span><b>Contacts</b><span>{contacts} customers, agencies and suppliers</span></Link>}
+        {show('/settings') && <Link className="app" href="/settings"><span className="ico"><Icon name="gear" /></span><b>Settings</b><span>Company, markups, payments and staff users</span></Link>}
       </div>
       <div className="homefoot"><span>The clickable prototype stays available at <a href="/prototype.html">/prototype.html</a> as a reference.</span></div>
     </section>

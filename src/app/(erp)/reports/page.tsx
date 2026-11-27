@@ -1,5 +1,7 @@
 import Link from 'next/link';
-import { crmIn, reportPeriod, reportTables, salesIn, type Table } from '@/lib/reports';
+import { crmIn, reportPeriod, reportTables, salesIn, withoutCosts, type Table } from '@/lib/reports';
+import { getSession } from '@/lib/auth';
+import { accessFor } from '@/lib/roles';
 import { money, r2, todayISO } from '@/lib/constants';
 import { Tabs } from '@/components/ListChrome';
 import { PrintButton } from '@/components/PrintBar';
@@ -61,7 +63,11 @@ export default async function ReportsPage({ searchParams }: { searchParams: SP }
   const p = sp.p || '12m';
   const per = reportPeriod(p, today);
   const [sales, crm] = await Promise.all([salesIn(per.from, per.to), crmIn(per.from, per.to)]);
-  const tables = await reportTables(sales, per.months, crm);
+  const full = await reportTables(sales, per.months, crm);
+  // Without costs and margins, every table loses its cost and margin columns, and the margin figures disappear.
+  const me = await getSession();
+  const costs = me ? (await accessFor(me.sub, me.role)).costs : false;
+  const tables = (costs ? full : Object.fromEntries(Object.entries(full).map(([k, t]) => [k, withoutCosts(t)]))) as typeof full;
   const link = (o: Record<string, string>) => `/reports?${new URLSearchParams({ tab, p, ...o })}`;
   const yr = /^\d{4}/.test(p) ? p.slice(0, 4) : today.slice(0, 4);
   const price = r2(sales.reduce((s, x) => s + x.price, 0)), cost = r2(sales.reduce((s, x) => s + x.cost, 0)), margin = r2(price - cost);
@@ -97,14 +103,14 @@ export default async function ReportsPage({ searchParams }: { searchParams: SP }
         <>
           <div className="kpis">
             <div className="kpi"><span>Sales</span><b>{money(price)}</b></div>
-            <div className="kpi"><span>Margin</span><b>{money(margin)}</b><span className="muted">{price ? `${((margin / price) * 100).toFixed(1)}% of sales` : ''}</span></div>
+            {costs && <div className="kpi"><span>Margin</span><b>{money(margin)}</b><span className="muted">{price ? `${((margin / price) * 100).toFixed(1)}% of sales` : ''}</span></div>}
             <div className="kpi"><span>Bookings</span><b>{sales.length}</b><span className="muted">{sales.length ? `${money(price / sales.length)} on average` : ''}</span></div>
             <div className="kpi"><span>Win rate</span><b>{won + lost ? `${Math.round((won / (won + lost)) * 100)}%` : 'None decided'}</b><span className="muted">{won} won, {lost} lost</span></div>
           </div>
           <section className="sheet" style={{ marginBottom: 16 }}>
-            <div className="cp" style={{ marginBottom: 6 }}><h2 style={{ margin: 0 }}>Sales and margin by month</h2>
-              <span className="legend"><i className="sw s" /> Sales <i className="sw m" /> Margin</span></div>
-            <Chart t={tables.monthly} />
+            <div className="cp" style={{ marginBottom: 6 }}><h2 style={{ margin: 0 }}>{costs ? 'Sales and margin by month' : 'Sales by month'}</h2>
+              <span className="legend"><i className="sw s" /> Sales {costs && <><i className="sw m" /> Margin</>}</span></div>
+            <Chart t={costs ? tables.monthly : { ...tables.monthly, cols: full.monthly.cols, rows: full.monthly.rows.map((r) => r.map((v, i) => (/margin/i.test(full.monthly.cols[i].h) ? 0 : v))) }} />
           </section>
           <div className="rgrid">
             {(['customers', 'destinations'] as const).map((k) => (

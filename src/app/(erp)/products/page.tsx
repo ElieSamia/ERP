@@ -1,3 +1,5 @@
+import { getSession } from '@/lib/auth';
+import { accessFor } from '@/lib/roles';
 import Link from 'next/link';
 import { listProducts } from '@/lib/products';
 import { getPricing } from '@/lib/bookings';
@@ -9,6 +11,8 @@ type SP = Promise<{ q?: string; type?: string; active?: string }>;
 export default async function ProductsPage({ searchParams }: { searchParams: SP }) {
   const { q, type = 'all', active = 'yes' } = await searchParams;
   const [list, pricing] = await Promise.all([listProducts({ q, type, active: active as 'yes' | 'no' | 'all' }), getPricing()]);
+  const me = await getSession();
+  const costs = me ? (await accessFor(me.sub, me.role)).costs : false;
   const link = (o: Record<string, string>) => `/products?${new URLSearchParams({ ...(q ? { q } : {}), type, active, ...o })}`;
   const chans: Channel[] = ['B2C', 'B2B', 'Corporate'];
   return (
@@ -24,11 +28,11 @@ export default async function ProductsPage({ searchParams }: { searchParams: SP 
       </div>
       {list.length === 0 ? <div className="empty">{q || type !== 'all' ? 'No products match.' : 'No products yet. Add the hotels, transfers, visas and packages you sell often, with their cost and markup, then add them to bookings in one click.'}</div> : (
         <div className="table-wrap"><table>
-          <thead><tr><th>Product</th><th>Type</th><th>Supplier</th><th className="num">Cost</th><th>Markup</th>{chans.map((c) => <th key={c} className="num">{c}</th>)}<th className="num">Used</th></tr></thead>
+          <thead><tr><th>Product</th><th>Type</th><th>Supplier</th>{costs && <><th className="num">Cost</th><th>Markup</th></>}{chans.map((c) => <th key={c} className="num">{c}</th>)}<th className="num">Used</th></tr></thead>
           <tbody>{list.map((p) => (
             <tr key={p.id}><td><Link href={`/products/${p.id}`}><strong>{p.name}</strong></Link>{p.code && <span className="muted"> {p.code}</span>}{!p.active && <span className="badge" style={{ marginLeft: 6 }}>Archived</span>}</td>
-              <td>{label(SERVICE_TYPES, p.type)}</td><td>{p.supplierName ?? ''}</td><td className="num">{money(p.cost)}</td>
-              <td>{p.pricing === 'channel' ? <span className="muted">Channel default</span> : fmtMarkup(p.markup, p.pricing)}</td>
+              <td>{label(SERVICE_TYPES, p.type)}</td><td>{p.supplierName ?? ''}</td>{costs && <><td className="num">{money(p.cost)}</td>
+              <td>{p.pricing === 'channel' ? <span className="muted">Channel default</span> : fmtMarkup(p.markup, p.pricing)}</td></>}
               {chans.map((c) => <td key={c} className="num">{money(sell({ cost: p.cost, ...productMarkup(p, c, pricing) }))}</td>)}
               <td className="num">{p.used || ''}</td></tr>))}
           </tbody></table></div>
