@@ -52,7 +52,10 @@ function Group({ g, cur }: { g: (typeof GROUPS)[number]; cur?: string }) {
   );
 }
 
-export function TopBar({ company, userName, logo = false }: { company: string; userName: string; logo?: boolean }) {
+/** Which app each menu entry belongs to, for hiding what a role can't open. */
+const AREA_OF: Record<string, string> = { '/crm': 'crm', '/bookings': 'bookings', '/rates': 'rates', '/calendar': 'calendar', '/products': 'products', '/contacts': 'contacts', '/invoicing': 'invoicing', '/purchasing': 'purchasing', '/expenses': 'expenses', '/accounting': 'accounting', '/reports': 'reports', '/marketing': 'marketing', '/whatsapp': 'whatsapp', '/b2b': 'portal' };
+
+export function TopBar({ company, userName, logo = false, allowed }: { company: string; userName: string; logo?: boolean; allowed?: string[] }) {
   const path = usePathname();
   const router = useRouter();
   const cur = MODULES.find((m) => path.startsWith(m.href));
@@ -69,7 +72,7 @@ export function TopBar({ company, userName, logo = false }: { company: string; u
       <span className="brand">{cur ? cur.name : company || 'Travel ERP'}</span>
       {cur ? (
         <nav className="modnav" aria-label="Apps">
-          {GROUPS.map((g) => <Group key={g.name} g={g} cur={cur.href} />)}
+          {GROUPS.map((g) => ({ ...g, items: g.items.filter((h) => !allowed || !AREA_OF[h] || allowed.includes(AREA_OF[h])) })).filter((g) => g.items.length).map((g) => <Group key={g.name} g={g} cur={cur.href} />)}
         </nav>
       ) : <span className="spacer" />}
       <span className="who">{userName}</span>

@@ -21,7 +21,7 @@ export function CataloguePicker({ channel, pricing, onPick, onClose }: { channel
           <thead><tr><th>Product</th><th>Type</th><th>Supplier</th><th className="num">Price ({channel})</th><th><span className="sr">Add</span></th></tr></thead>
           <tbody>{shown.map((p) => (
             <tr key={p.id}><td><strong>{p.name}</strong>{p.code && <span className="muted"> {p.code}</span>}</td><td>{label(SERVICE_TYPES, p.type)}</td><td>{p.supplierName ?? ''}</td>
-              <td className="num">{money(sell({ cost: p.cost, ...productMarkup(p, channel, pricing) }))}</td>
+              <td className="num">{money((p as typeof p & { prices?: Record<string, number> }).prices?.[channel] ?? sell({ cost: p.cost, ...productMarkup(p, channel, pricing) }))}</td>
               <td style={{ textAlign: 'right' }}><button className="btn primary" onClick={() => onPick(p)}>Add</button></td></tr>))}
             {shown.length === 0 && <tr><td colSpan={5} className="muted">No product matches “{q}”.</td></tr>}
           </tbody></table></div>

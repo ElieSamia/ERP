@@ -70,7 +70,7 @@ function Ticket({ b, booking }: { b: Draft; booking?: Booking }) {
   );
 }
 
-export function BookingForm({ initial, suppliers, pricing, pax }: { initial?: Booking; suppliers: Option[]; pricing: Pricing; pax?: PaxInput[] }) {
+export function BookingForm({ initial, suppliers, pricing, pax, costs = true }: { initial?: Booking; suppliers: Option[]; pricing: Pricing; pax?: PaxInput[]; costs?: boolean }) {
   const router = useRouter();
   const toast = useToast();
   const [booking, setBooking] = useState<Booking | undefined>(initial);
@@ -97,7 +97,9 @@ export function BookingForm({ initial, suppliers, pricing, pax }: { initial?: Bo
   }
   const [picker, setPicker] = useState(false);
   function addProduct(p: Product) {
-    const m = productMarkup(p, channel, pricing);
+    // Without access to costs the catalogue sends the selling price instead: show it now; the server prices it on save.
+    const priced = (p as Product & { prices?: Record<string, number> }).prices?.[channel];
+    const m = priced !== undefined ? { markup: priced, markupType: 'amount' as const } : productMarkup(p, channel, pricing);
     set('lines', [...b.lines, {
       id: newId(), type: p.type, desc: p.desc || p.name, date: b.departDate || '', dateTo: '', supplierId: p.supplierId, cost: p.cost, ...m,
       productId: p.id, ...(p.vat === 'default' ? {} : { vat: Number(p.vat) }), ...(p.pricing === 'channel' ? {} : { fixedMarkup: true }),
@@ -216,7 +218,7 @@ export function BookingForm({ initial, suppliers, pricing, pax }: { initial?: Bo
             {b.lines.length ? (
               <div className="table-wrap">
                 <table className="lines">
-                  <thead><tr><th>Type</th><th>Description</th><th>From</th><th>To</th><th>Supplier</th><th className="num">Cost</th><th className="num">Markup</th><th className="num">Price</th>{linesEditable && <th><span className="sr">Remove</span></th>}</tr></thead>
+                  <thead><tr><th>Type</th><th>Description</th><th>From</th><th>To</th><th>Supplier</th>{costs && <><th className="num">Cost</th><th className="num">Markup</th></>}<th className="num">Price</th>{linesEditable && <th><span className="sr">Remove</span></th>}</tr></thead>
                   <tbody>
                     {b.lines.map((l) => linesEditable ? (
                       <tr key={l.id}>
@@ -225,18 +227,18 @@ export function BookingForm({ initial, suppliers, pricing, pax }: { initial?: Bo
                         <td><DateInput aria-label="Service date" value={l.date} onChange={(v) => setLine(l.id, { date: v, dateTo: l.dateTo && v && l.dateTo < v ? '' : l.dateTo })} /></td>
                         <td><DateInput aria-label="Service end date" value={l.dateTo} min={l.date || undefined} aria-invalid={dateErrors.lines.has(l.id) || undefined} className={dateErrors.lines.has(l.id) ? 'bad' : ''} onChange={(v) => setLine(l.id, { dateTo: v })} /></td>
                         <td><select aria-label="Supplier" value={l.supplierId} onChange={(e) => setLine(l.id, { supplierId: e.target.value })}>{supplierOpts.map(([k, lb]) => <option key={k} value={k}>{lb}</option>)}</select></td>
-                        <td className="num"><input className="w-num" type="number" min={0} step="0.01" aria-label="Cost" value={l.cost} disabled={l.api?.status === 'held' || l.api?.status === 'confirmed'} title={l.api?.status === 'held' || l.api?.status === 'confirmed' ? `Set by ${l.api.provider}` : undefined} onChange={(e) => setLine(l.id, { cost: parseFloat(e.target.value) || 0 })} /></td>
+                        {costs && <><td className="num"><input className="w-num" type="number" min={0} step="0.01" aria-label="Cost" value={l.cost} disabled={l.api?.status === 'held' || l.api?.status === 'confirmed'} title={l.api?.status === 'held' || l.api?.status === 'confirmed' ? `Set by ${l.api.provider}` : undefined} onChange={(e) => setLine(l.id, { cost: parseFloat(e.target.value) || 0 })} /></td>
                         <td className="num"><span className="mk">
                           <input className="w-pct" type="number" min={0} step={l.markupType === 'amount' ? '0.01' : '0.5'} aria-label={l.markupType === 'amount' ? 'Markup amount in USD' : 'Markup percent'} value={l.markup} onChange={(e) => setLine(l.id, { markup: parseFloat(e.target.value) || 0 })} />
                           <select aria-label="Markup type" value={l.markupType ?? 'percent'} onChange={(e) => setLine(l.id, { markupType: e.target.value as MarkupType })}>{MARKUP_TYPES.map(([k, lb]) => <option key={k} value={k}>{lb}</option>)}</select>
-                        </span></td>
-                        <td className="num">{money(sell(l))}</td>
+                        </span></td></>}
+                        <td className="num">{costs || l.cost || l.markup ? money(sell(l)) : <span className="muted" title="Priced by someone with access to costs">To be priced</span>}</td>
                         <td><button className="icon-btn" aria-label="Remove service" onClick={() => set('lines', b.lines.filter((x) => x.id !== l.id))}>×</button></td>
                       </tr>
                     ) : (
                       <tr key={l.id}>
                         <td>{label(SERVICE_TYPES, l.type)}</td><td>{l.desc}</td><td>{l.date ? fmtDate(l.date) : ''}</td><td>{l.dateTo ? fmtDate(l.dateTo) : ''}</td>
-                        <td>{suppliers.find((s) => s.id === l.supplierId)?.name ?? ''}</td><td className="num">{money(l.cost)}</td><td className="num">{fmtMarkup(l.markup, l.markupType)}</td><td className="num">{money(sell(l))}</td>
+                        <td>{suppliers.find((s) => s.id === l.supplierId)?.name ?? ''}</td>{costs && <><td className="num">{money(l.cost)}</td><td className="num">{fmtMarkup(l.markup, l.markupType)}</td></>}<td className="num">{money(sell(l))}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -245,10 +247,10 @@ export function BookingForm({ initial, suppliers, pricing, pax }: { initial?: Bo
             ) : <div className="empty">No services yet. Add a flight, hotel or other service to price this trip.</div>}
             {picker && <CataloguePicker channel={channel} pricing={pricing} onPick={addProduct} onClose={() => setPicker(false)} />}
             {linesEditable && <div className="addrow"><button className="btn" onClick={addLine}>Add service</button><button className="btn" onClick={() => setPicker(true)}>Add from catalogue</button>
-              <span className="muted" style={{ alignSelf: 'center', fontSize: 13.5 }}>New services get the {channel} markup of {fmtMarkup(rate, rateType)}. Choose % or USD on each service.</span></div>}
+              <span className="muted" style={{ alignSelf: 'center', fontSize: 13.5 }}>{costs ? <>New services get the {channel} markup of {fmtMarkup(rate, rateType)}. Choose % or USD on each service.</> : 'New services are priced by someone with access to costs.'}</span></div>}
             <div className="totals">
-              <div><span>Supplier cost</span><b>{money(t.cost)}</b></div>
-              <div><span>Margin</span><b>{money(t.margin)}</b></div>
+              {costs && <><div><span>Supplier cost</span><b>{money(t.cost)}</b></div>
+              <div><span>Margin</span><b>{money(t.margin)}</b></div></>}
               <div className="grand"><span>Total price</span><b>{money(t.total)}</b></div>
             </div>
           </section>
@@ -257,7 +259,7 @@ export function BookingForm({ initial, suppliers, pricing, pax }: { initial?: Bo
             <h2>Notes</h2>
             <div className="grid">
               <TextArea id="f-tnotes" label="Notes for the customer, printed on the confirmation" rows={5} value={b.tripNotes} onChange={(v) => set('tripNotes', v)} />
-              <TextArea id="f-notes" label="Internal notes, staff only" rows={Math.min(24, Math.max(5, b.notes.split('\n').length + 1))} value={b.notes} onChange={(v) => set('notes', v)} />
+              <TextArea id="f-notes" label="Internal notes, staff only" rows={Math.min(24, Math.max(5, b.notes.split('\n').length + 1))} value={b.notes} onChange={(v) => set('notes', v)} disabled={!costs} />
             </div>
           </section>
 

@@ -40,13 +40,15 @@ export function RatesDesk({ customers, pricing, drafts, requests, hasConnections
   const set = (k: string, v: string | number) => setForms({ ...forms, [kind]: { ...f, [k]: v } });
   const cust = customers.find((c) => c.id === customer);
   const ch = CHANNEL[cust?.type ?? 'customer'] ?? 'B2C';
-  const price = useCallback((r: Result) => sell({ cost: r.costUSD, markup: pricing[ch], markupType: pricing.modes?.[ch] ?? 'percent' }), [pricing, ch]);
+  // Results already priced by the server (for a role without costs) carry the selling price instead of the cost.
+  const price = useCallback((r: Result) => ((r as Result & { priced?: boolean }).priced ? r.costUSD : sell({ cost: r.costUSD, markup: pricing[ch], markupType: pricing.modes?.[ch] ?? 'percent' })), [pricing, ch]);
+  const costsHidden = (results ?? []).some((r) => (r as Result & { priced?: boolean }).priced);
   const shown = useMemo(() => (results ?? []).filter((r) => filter === 'all' || r.refundable), [results, filter]);
 
   async function search(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true); setResults(null); setErrors([]);
-    try { const r = await api<{ results: Result[]; errors: { provider: string; error: string }[] }>('/api/rates/search', 'POST', { kind, q: f }); setResults(r.results); setErrors(r.errors); }
+    try { const r = await api<{ results: Result[]; errors: { provider: string; error: string }[] }>('/api/rates/search', 'POST', { kind, q: f, channel: ch }); setResults(r.results); setErrors(r.errors); }
     catch (x) { toast((x as Error).message, 'err'); } finally { setBusy(false); }
   }
   const toggle = (r: Result) => setPicked(picked.some((p) => p.token === r.token) ? picked.filter((p) => p.token !== r.token) : [...picked, r]);
@@ -105,7 +107,7 @@ export function RatesDesk({ customers, pricing, drafts, requests, hasConnections
                     {r.cancelDeadline && <span className="muted" style={{ display: 'block' }}>Free cancellation until {fmtDate(r.cancelDeadline)}</span>}
                     {r.timeLimit && <span className="muted" style={{ display: 'block' }}>Ticket by {fmtDate(r.timeLimit)}</span>}</td>
                   <td>{r.provider}</td>
-                  <td className="num">{money(r.costUSD)}{r.currency !== 'USD' && <span className="muted" style={{ display: 'block', fontSize: 12 }}>{r.amount.toFixed(2)} {r.currency}</span>}</td>
+                  <td className="num">{costsHidden ? '' : <>{money(r.costUSD)}{r.currency !== 'USD' && <span className="muted" style={{ display: 'block', fontSize: 12 }}>{r.amount.toFixed(2)} {r.currency}</span>}</>}</td>
                   <td className="num"><b>{money(price(r))}</b></td>
                 </tr>); })}</tbody>
             </table></div>
@@ -143,6 +145,7 @@ export function RatesDesk({ customers, pricing, drafts, requests, hasConnections
 
 /** Flight results: filters on the left, Best / Cheapest / Fastest on top, 50 at a time. */
 function FlightResults({ results, price, picked, toggle }: { results: Result[]; price: (r: Result) => number; picked: Result[]; toggle: (r: Result) => void }) {
+  const costsHidden = results.some((r) => (r as Result & { priced?: boolean }).priced);
   const h = useFlightFilters(results, price);
   const [shown, setShown] = useState(50);
   const list = h.sorted.slice(0, shown);
@@ -169,7 +172,7 @@ function FlightResults({ results, price, picked, toggle }: { results: Result[]; 
                   {r.refundable ? <span className="badge b-green">Refundable</span> : <span className="badge b-amber">Non-refundable</span>}
                   {r.timeLimit && <span className="badge">Hold until {fmtDate(r.timeLimit)}</span>}
                   {f.emissionsKg ? <span className="badge">{Math.round(f.emissionsKg)} kg CO₂</span> : null}</div></div>
-              <div className="fprice"><b>{money(price(r))}</b><small>cost {money(r.costUSD)}{r.currency !== 'USD' ? ` (${r.amount.toFixed(2)} ${r.currency})` : ''}</small>
+              <div className="fprice"><b>{money(price(r))}</b>{!costsHidden && <small>cost {money(r.costUSD)}{r.currency !== 'USD' ? ` (${r.amount.toFixed(2)} ${r.currency})` : ''}</small>}
                 <button className={`btn ${on ? '' : 'primary'}`} onClick={() => toggle(r)}>{on ? 'Selected' : 'Select'}</button></div>
             </article>
           );

@@ -42,14 +42,17 @@ export function CompanyForm({ initial, canEdit }: { initial: Company; canEdit: b
   );
 }
 
-export function UsersPanel({ initial, meId }: { initial: StaffUser[]; meId: string }) {
+export function UsersPanel({ initial, meId, roles = [] }: { initial: StaffUser[]; meId: string; roles?: { id: string; name: string }[] }) {
   const [users, setUsers] = useState(initial);
-  const [n, setN] = useState({ name: '', email: '', role: 'staff', password: '' });
+  const [n, setN] = useState({ name: '', email: '', role: 'staff', roleId: 'staff-full', password: '' });
+  const accessOf = (u: { role: string; roleId?: string }) => (u.role === 'admin' ? 'admin' : u.roleId || 'staff-full');
+  const accessName = (u: { role: string; roleId?: string }) => (u.role === 'admin' ? 'Administrator' : roles.find((r) => r.id === accessOf(u))?.name ?? 'Staff');
+  const options: [string, string][] = [['admin', 'Administrator (everything, including Settings)'], ...roles.map((r) => [r.id, r.name] as [string, string])];
   const [busy, setBusy] = useState(false);
   const toast = useToast();
   async function add() {
     setBusy(true);
-    try { setUsers(await api<StaffUser[]>('/api/users', 'POST', n)); toast(`${n.name} can now sign in.`); setN({ name: '', email: '', role: 'staff', password: '' }); }
+    try { setUsers(await api<StaffUser[]>('/api/users', 'POST', n)); toast(`${n.name} can now sign in.`); setN({ name: '', email: '', role: 'staff', roleId: n.roleId, password: '' }); }
     catch (e) { toast((e as Error).message, 'err'); } finally { setBusy(false); }
   }
   async function patch(id: string, body: Partial<StaffUser>) {
@@ -61,15 +64,15 @@ export function UsersPanel({ initial, meId }: { initial: StaffUser[]; meId: stri
       <h2>Staff users</h2>
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Last sign-in</th><th>Status</th><th><span className="sr">Actions</span></th></tr></thead>
+          <thead><tr><th>Name</th><th>Email</th><th>Access</th><th>Last sign-in</th><th>Status</th><th><span className="sr">Actions</span></th></tr></thead>
           <tbody>
             {users.map((u) => (
               <tr key={u.id}>
                 <td><strong>{u.name}</strong>{u.id === meId && <span className="muted"> (you)</span>}</td>
                 <td>{u.email}</td>
-                <td>{u.id === meId ? (u.role === 'admin' ? 'Administrator' : 'Staff') :
-                  <select aria-label={`Role for ${u.name}`} value={u.role} onChange={(e) => patch(u.id, { role: e.target.value as StaffUser['role'] })}>
-                    <option value="admin">Administrator</option><option value="staff">Staff</option>
+                <td>{u.id === meId ? accessName(u) :
+                  <select aria-label={`Access for ${u.name}`} value={accessOf(u)} onChange={(e) => patch(u.id, e.target.value === 'admin' ? { role: 'admin' } : { role: 'staff', roleId: e.target.value })}>
+                    {options.map(([k, l]) => <option key={k} value={k}>{k === 'admin' ? 'Administrator' : l}</option>)}
                   </select>}</td>
                 <td>{u.lastLogin ? fmtDateTime(u.lastLogin) : 'Never'}</td>
                 <td>{u.active ? <span className="badge b-green">Active</span> : <span className="badge">Inactive</span>}{u.twoStep && <span className="badge b-accent" style={{ marginLeft: 4 }} title="Signs in with a code from an authenticator app">Two-step</span>}</td>
@@ -85,7 +88,7 @@ export function UsersPanel({ initial, meId }: { initial: StaffUser[]; meId: stri
       <div className="grid">
         <TextField id="nu-name" label="Name" value={n.name} onChange={(v) => setN({ ...n, name: v })} />
         <TextField id="nu-email" label="Email" type="email" value={n.email} onChange={(v) => setN({ ...n, email: v })} />
-        <SelectField id="nu-role" label="Role" value={n.role} options={[['staff', 'Staff'], ['admin', 'Administrator']]} onChange={(v) => setN({ ...n, role: v })} />
+        <SelectField id="nu-role" label="Access" value={n.role === 'admin' ? 'admin' : n.roleId} options={options} onChange={(v) => setN(v === 'admin' ? { ...n, role: 'admin' } : { ...n, role: 'staff', roleId: v })} />
         <TextField id="nu-pass" label="Temporary password, at least 10 characters" type="password" value={n.password} onChange={(v) => setN({ ...n, password: v })} />
       </div>
       <div className="addrow"><button className="btn primary" onClick={add} disabled={busy}>{busy ? 'Adding…' : 'Add user'}</button></div>
