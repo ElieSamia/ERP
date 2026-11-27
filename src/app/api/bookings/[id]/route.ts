@@ -1,3 +1,6 @@
+import { accessFor } from '@/lib/roles';
+import { keepCosts, maskBooking, priceFromCatalogue } from '@/lib/costmask';
+import type { BookingLine } from '@/lib/types';
 import { db } from '@/lib/db';
 import { handle, HttpError, oid, requireUser } from '@/lib/api';
 import { bookingSchema } from '@/lib/schemas';
@@ -10,10 +13,10 @@ type Ctx = { params: Promise<{ id: string }> };
 
 export async function GET(_req: Request, { params }: Ctx) {
   return handle(async () => {
-    await requireUser();
+    const me = await requireUser();
     const b = await getBooking((await params).id);
     if (!b) throw new HttpError(404, 'Booking not found.');
-    return b;
+    return (await accessFor(me.sub, me.role)).costs ? b : maskBooking(b);
   });
 }
 
@@ -26,6 +29,12 @@ export async function PATCH(req: Request, { params }: Ctx) {
     const before = await col.findOne({ _id: oid(id) });
     if (!before) throw new HttpError(404, 'Booking not found.');
     const data = bookingSchema.parse(await req.json());
+    const costs = (await accessFor(user.sub, user.role)).costs;
+    if (!costs) {
+      // Without access to costs: prices and internal notes stay as they were.
+      data.lines = await priceFromCatalogue(keepCosts(data.lines as BookingLine[], (before.lines as BookingLine[]) || []), (before.lines as BookingLine[]) || [], data.contactId) as typeof data.lines;
+      data.notes = String(before.notes ?? '');
+    }
     // Provider links are the server's own record: never taken from the form, kept as they were.
     type Api = { status?: string; provider?: string };
     const prevLines = (before.lines as { id: string; cost: number; api?: Api }[]) || [];
@@ -56,7 +65,8 @@ export async function PATCH(req: Request, { params }: Ctx) {
     if (headerChanged && !notes.length) notes.push('Trip details updated.');
     if (!notes.length) notes.push('Notes updated.');
     await logActivity('booking', id, user.name, notes.join(' '));
-    return getBooking(id);
+    const saved = await getBooking(id);
+    return saved && !costs ? maskBooking(saved) : saved;
   });
 }
 

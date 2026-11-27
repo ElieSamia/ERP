@@ -1,3 +1,4 @@
+import { audit } from '@/lib/audit';
 import { z } from 'zod';
 import { compare } from 'bcryptjs';
 import { db } from '@/lib/db';
@@ -18,16 +19,21 @@ export async function POST(req: Request) {
     const users = (await db()).collection('users');
     const u = await users.findOne({ email });
     // Same message for every failure, so the form doesn't reveal which emails exist.
-    if (u && isLocked(u)) throw new HttpError(429, `Too many wrong passwords. Try again in ${LOCK_MINUTES} minutes.`);
+    if (u && isLocked(u)) { await audit({ kind: 'sign-in', action: 'Sign-in blocked: account locked', who: String(u.name), whoId: String(u._id), target: email }); throw new HttpError(429, `Too many wrong passwords. Try again in ${LOCK_MINUTES} minutes.`); }
     const good = !!u && !!u.active && (await compare(password, String(u.passwordHash)));
     if (u) await recordLogin('users', u, good);
-    if (!u || !good) throw new HttpError(401, 'The email or password is incorrect.');
+    if (!u || !good) {
+      await audit({ kind: 'sign-in', action: u ? (u.active ? 'Wrong password' : 'Sign-in by a deactivated user') : 'Sign-in with an unknown email', who: u ? String(u.name) : '', whoId: u ? String(u._id) : '', target: email });
+      throw new HttpError(401, 'The email or password is incorrect.');
+    }
     if (u.totpEnabled) {
       // Password right; the session only starts once the code from the authenticator app is checked too.
       (await cookies()).set(TWO_STEP_COOKIE, await signTicket(String(u._id)), { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: 300 });
+      await audit({ kind: 'sign-in', action: 'Password accepted, waiting for the two-step code', who: String(u.name), whoId: String(u._id), target: email });
       return { twoStep: true };
     }
     await createSession({ sub: String(u._id), name: String(u.name), email, role: u.role === 'admin' ? 'admin' : 'staff' });
+    await audit({ kind: 'sign-in', action: 'Signed in', who: String(u.name), whoId: String(u._id), target: email });
     return { ok: true };
   });
 }

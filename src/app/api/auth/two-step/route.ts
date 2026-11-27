@@ -1,3 +1,4 @@
+import { audit } from '@/lib/audit';
 import { z } from 'zod';
 import { cookies } from 'next/headers';
 import { ObjectId } from 'mongodb';
@@ -36,9 +37,10 @@ export async function POST(req: Request) {
       ok = r.modifiedCount === 1;
     }
     await recordLogin('users', u, ok);
-    if (!ok) throw new HttpError(401, 'That code isn’t right. Check the time on your phone, or use a recovery code.');
+    if (!ok) { await audit({ kind: 'sign-in', action: 'Wrong two-step code', who: String(u.name), whoId: String(u._id), target: String(u.email) }); throw new HttpError(401, 'That code isn’t right. Check the time on your phone, or use a recovery code.'); }
     jar.delete(TWO_STEP_COOKIE);
     await createSession({ sub: String(u._id), name: String(u.name), email: String(u.email), role: u.role === 'admin' ? 'admin' : 'staff' });
+    await audit({ kind: 'sign-in', action: /^[0-9a-f]{5}-[0-9a-f]{5}$/i.test(code) ? 'Signed in with a recovery code' : 'Signed in (two-step)', who: String(u.name), whoId: String(u._id), target: String(u.email) });
     return { ok: true, recoveryLeft: (u.recoveryHashes as string[] | undefined)?.length ?? 0 };
   });
 }
