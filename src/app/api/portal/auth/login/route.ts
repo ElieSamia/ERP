@@ -1,3 +1,4 @@
+import { audit } from '@/lib/audit';
 import { z } from 'zod';
 import { compare } from 'bcryptjs';
 import { ObjectId } from 'mongodb';
@@ -16,8 +17,9 @@ export async function POST(req: Request) {
     const c = u && ObjectId.isValid(String(u.contactId)) ? await d.collection('contacts').findOne({ _id: new ObjectId(String(u.contactId)) }) : null;
     const good = !!u && !!u.active && !!u.passwordHash && !!c && c.portalAccess === 'yes' && (await compare(password, String(u.passwordHash)));
     if (u) await recordLogin('portalUsers', u, good);
-    if (!u || !good) throw new HttpError(401, 'The email or password is incorrect, or your access is switched off.');
+    if (!u || !good) { await audit({ kind: 'sign-in', action: u ? 'Portal: wrong password or access off' : 'Portal: unknown email', who: u ? `${u.name} (portal)` : '', target: email }); throw new HttpError(401, 'The email or password is incorrect, or your access is switched off.'); }
     await createPortalSession({ id: String(u._id), name: String(u.name), email, contactId: String(u.contactId) });
+    await audit({ kind: 'sign-in', action: 'Portal: signed in', who: `${u.name} (portal)`, target: email });
     return { ok: true };
   });
 }

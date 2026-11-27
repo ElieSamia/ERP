@@ -1,3 +1,6 @@
+import { accessFor } from '@/lib/roles';
+import { getPricing } from '@/lib/bookings';
+import { sell } from '@/lib/constants';
 import { z } from 'zod';
 import { handle, HttpError, requireUser } from '@/lib/api';
 import { searchAll } from '@/lib/rates';
@@ -15,13 +18,20 @@ const schema = z.discriminatedUnion('kind', [
 /** One search across every active provider that sells this kind. */
 export async function POST(req: Request) {
   return handle(async () => {
-    await requireUser();
-    const query = schema.parse(await req.json());
+    const me = await requireUser();
+    const body = await req.json();
+    const query = schema.parse(body);
+    const channel = ['B2C', 'B2B', 'Corporate'].includes(body?.channel) ? body.channel as 'B2C' | 'B2B' | 'Corporate' : 'B2C';
     const q = query.q as unknown as Record<string, string>;
     const [a, b] = query.kind === 'flight' ? [q.depart, q.ret] : query.kind === 'hotel' ? [q.checkIn, q.checkOut] : query.kind === 'insurance' ? [q.start, q.end] : [q.date, ''];
     if (a < new Date().toISOString().slice(0, 10)) throw new HttpError(400, 'The dates are in the past.');
     if (b && b < a) throw new HttpError(400, 'The end date is before the start date.');
     if (query.kind === 'hotel' && b === a) throw new HttpError(400, 'Check-out must be at least one night after check-in.');
-    return searchAll(query);
+    const res = await searchAll(query);
+    if ((await accessFor(me.sub, me.role)).costs) return res;
+    // Without access to costs: each result carries its selling price for this customer's channel, never the cost.
+    const pricing = await getPricing();
+    const price = (c: number) => sell({ cost: c, markup: pricing[channel], markupType: pricing.modes?.[channel] ?? 'percent' });
+    return { ...res, results: res.results.map((r) => ({ ...r, costUSD: price(r.costUSD), amount: price(r.costUSD), currency: 'USD', priced: true })) };
   });
 }

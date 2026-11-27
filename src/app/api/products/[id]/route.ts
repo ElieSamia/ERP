@@ -8,10 +8,11 @@ type Ctx = { params: Promise<{ id: string }> };
 
 export async function GET(_req: Request, { params }: Ctx) {
   return handle(async () => {
-    await requireUser();
+    const me = await requireUser();
     const p = await getProduct((await params).id);
     if (!p) throw new HttpError(404, 'Product not found.');
-    return p;
+    if ((await (await import('@/lib/roles')).accessFor(me.sub, me.role)).costs) return p;
+    return { ...p, cost: 0, markup: 0 };
   });
 }
 
