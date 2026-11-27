@@ -94,6 +94,8 @@ export function LeadForm({ initial }: { initial?: Lead }) {
               <TextField id="f-date" label="Travel date" type="date" value={l.travelDate} onChange={(v) => set('travelDate', v)} />
               <NumberField id="f-pax" label="Travellers" value={l.pax} onChange={(v) => set('pax', Math.round(v))} />
               <NumberField id="f-budget" label="Budget (USD)" step="0.01" value={l.budget} onChange={(v) => set('budget', v)} />
+              <TextField id="f-fu" label="Follow up on" type="date" value={l.followUpDate ?? ''} onChange={(v) => setL({ ...l, followUpDate: v })} />
+              <TextField id="f-fun" label="About (for example: call back about hotel options)" value={l.followUpNote ?? ''} onChange={(v) => setL({ ...l, followUpNote: v })} />
               <TextArea id="f-notes" label="Notes" rows={4} value={l.notes} onChange={(v) => set('notes', v)} />
             </div>
           </section>

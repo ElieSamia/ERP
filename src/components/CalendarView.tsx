@@ -11,7 +11,7 @@ import { useToast } from './Toast';
 
 const KINDS: [CalKind, string, string][] = [
   ['trip', 'Departures and returns', 'k-flight'], ['service', 'Services', 'k-service'], ['due', 'Customer payments due', 'k-due'],
-  ['bill', 'Supplier payments due', 'k-bill'], ['lead', 'Opportunities', 'k-lead'], ['quote', 'Quotes expiring', 'k-quote'], ['deadline', 'Provider deadlines', 'k-bill'], ['reminder', 'Reminders', 'k-task'],
+  ['bill', 'Supplier payments due', 'k-bill'], ['lead', 'Opportunities', 'k-lead'], ['followup', 'Follow-ups', 'k-follow'], ['quote', 'Quotes expiring', 'k-quote'], ['deadline', 'Provider deadlines', 'k-bill'], ['passport', 'Passport warnings', 'k-bill'], ['reminder', 'Reminders', 'k-task'],
 ];
 const cls = (e: CalEvent) => (e.kind === 'reminder' && e.done ? 'k-done' : KINDS.find((k) => k[0] === e.kind)![2]);
 const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];

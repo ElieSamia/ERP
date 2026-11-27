@@ -6,7 +6,7 @@ const newId = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? c
 
 /** Lines with a service type, VAT rate and amount, used by invoices and purchase orders. */
 export function TaxLines({ lines, onChange, editable, amountLabel, vatFor, payments = [], currency = 'USD', credit }: {
-  currency?: string; credit?: { credited: number; owed: number };
+  currency?: string; credit?: { credited: number; owed: number; refunded?: number };
   lines: TaxLine[]; onChange: (l: TaxLine[]) => void; editable: boolean; amountLabel: string; vatFor: (type: TaxLine['type']) => number; payments?: Payment[];
 }) {
   const t = docTotals(lines, payments);
@@ -44,6 +44,7 @@ export function TaxLines({ lines, onChange, editable, amountLabel, vatFor, payme
           <div><span>Net invoice</span><b>{money(t.total - credit.credited, currency)}</b></div>
         </>}
         {t.paid > 0 && <div><span>Paid</span><b>{money(t.paid, currency)}</b></div>}
+        {(credit?.refunded ?? 0) > 0.004 && <div><span>Refunded</span><b>−{money(credit!.refunded!, currency)}</b></div>}
         {credit && credit.owed > 0.004
           ? <div className="grand owed"><span>Owed to the customer</span><b>{money(credit.owed, currency)}</b></div>
           : <div className="grand"><span>{payments.length || credit ? 'Balance due' : 'Total'}</span><b>{money(payments.length || credit ? t.balance : t.total, currency)}</b></div>}

@@ -8,6 +8,7 @@ const SEL: [string, string, [string, string][]][] = [
   ['travel', 'Travel date', [['30d', 'Next 30 days'], ['month', 'This month'], ['next', 'Next month'], ['none', 'Not set yet']]],
   ['ctype', 'Customer type', [['customer', 'Individual'], ['agency', 'Agency'], ['corporate', 'Corporate']]],
   ['booking', 'Booking', [['yes', 'Has a booking'], ['no', 'No booking yet']]],
+  ['followup', 'Follow-up', [['due', 'Due today or overdue'], ['week', 'Due within a week']]],
 ];
 
 /** Quick chips and a Filters panel; everything lives in the address, so the view can be bookmarked or shared. */
@@ -27,12 +28,12 @@ export function CrmFilters({ sources }: { sources: string[] }) {
     const active = Object.entries(ch).every(([k, v]) => sp.get(k) === v);
     return <Link className={`chip ${active ? 'on' : ''}`} href={url(Object.fromEntries(Object.keys(ch).map((k) => [k, active ? null : ch[k]])))}>{label}</Link>;
   };
-  const keys = ['source', 'created', 'travel', 'ctype', 'dest', 'attention', 'booking'];
+  const keys = ['source', 'created', 'travel', 'ctype', 'dest', 'attention', 'booking', 'followup'];
   const count = keys.filter((k) => sp.get(k)).length;
   return (
     <div className="crmf">
       <div className="chips" role="group" aria-label="Quick filters">
-        {chip('Website', { source: 'website' })}{chip('WhatsApp', { source: 'whatsapp' })}{chip('New this week', { created: 'week' })}{chip('Needs attention', { attention: '1' })}
+        {chip('Website', { source: 'website' })}{chip('WhatsApp', { source: 'whatsapp' })}{chip('New this week', { created: 'week' })}{chip('Follow-up due', { followup: 'due' })}{chip('Needs attention', { attention: '1' })}
         <button className={`chip ${open || count ? 'on' : ''}`} onClick={() => setOpen(!open)} aria-expanded={open}>Filters{count ? ` (${count})` : ''}</button>
         {count > 0 && <Link className="linkbtn" href={url(Object.fromEntries(keys.map((k) => [k, null])))}>Clear filters</Link>}
       </div>
